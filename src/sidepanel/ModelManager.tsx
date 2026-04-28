@@ -130,7 +130,7 @@ export function ModelManager() {
 
   return (
     <section className="rounded-lg border bg-card p-4">
-      <h2 className="mb-1 text-sm font-bold">모델 관리</h2>
+      <h2 className="mb-1 text-base font-bold">모델 관리</h2>
       {!allCached && (
         <p className="mb-3 text-xs text-muted-foreground">
           한국어 정밀 보호 모델을 설치해주세요. 지금은 기본 패턴 보호만 동작해요. 모든 처리는 이
@@ -199,7 +199,7 @@ export function ModelManager() {
                 <div className="mt-3 flex justify-end gap-1">
                   {!cached && !downloading && (
                     <Button
-                      size="sm"
+                      size="default"
                       onClick={() => startDownload(def)}
                       disabled={!def.shippable}
                       aria-label={`${def.labelKo} 설치 시작`}
@@ -210,7 +210,7 @@ export function ModelManager() {
                   )}
                   {downloading && (
                     <Button
-                      size="sm"
+                      size="default"
                       variant="outline"
                       onClick={() => cancelDownload(def)}
                       aria-label={`${def.labelKo} 설치 취소`}

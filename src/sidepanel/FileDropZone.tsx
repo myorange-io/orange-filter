@@ -28,44 +28,47 @@ export function FileDropZone({ onAdd, onReject, className }: FileDropZoneProps) 
   );
 
   return (
-    <div
-      className={cn(
-        'rounded-lg border-2 border-dashed p-8 text-center transition-colors',
-        dragOver ? 'border-primary bg-accent/50' : 'border-border',
-        className,
-      )}
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'copy';
-        if (!dragOver) setDragOver(true);
-      }}
-      onDragLeave={(e) => {
-        // currentTarget 밖으로 나갈 때만 해제
-        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+    <>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className={cn(
+          'block w-full rounded-lg border-2 border-dashed p-8 text-center transition-colors cursor-pointer',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          dragOver
+            ? 'border-primary bg-accent/50'
+            : 'border-border hover:bg-muted/40 hover:border-primary/40',
+          className,
+        )}
+        onDragOver={(e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'copy';
+          if (!dragOver) setDragOver(true);
+        }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setDragOver(false);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
           setDragOver(false);
-        }
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        setDragOver(false);
-        if (e.dataTransfer.files.length === 0) return;
-        split(e.dataTransfer.files);
-      }}
-    >
-      <Upload className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden />
-      <p className="mt-3 text-sm text-muted-foreground">
-        파일을 여기에 끌어다 놓거나{' '}
-        <button
-          type="button"
-          className="text-primary underline underline-offset-2 hover:text-primary/80"
-          onClick={() => inputRef.current?.click()}
-        >
-          클릭해서 선택
-        </button>
-      </p>
-      <p className="mt-2 text-xs text-muted-foreground">
-        {SUPPORTED_EXTENSIONS.map((e) => e.replace('.', '').toUpperCase()).join(' · ')}
-      </p>
+          if (e.dataTransfer.files.length === 0) return;
+          split(e.dataTransfer.files);
+        }}
+        aria-label="파일을 끌어다 놓거나 클릭해서 선택"
+      >
+        <Upload className="mx-auto h-8 w-8 text-muted-foreground" aria-hidden />
+        <p className="mt-3 text-sm">
+          <span className="text-muted-foreground">파일을 끌어다 놓거나 </span>
+          <span className="text-primary underline underline-offset-2 font-medium">
+            클릭해서 선택
+          </span>
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          {SUPPORTED_EXTENSIONS.map((e) => e.replace('.', '').toUpperCase()).join(' · ')}
+        </p>
+      </button>
       <input
         ref={inputRef}
         type="file"
@@ -78,6 +81,6 @@ export function FileDropZone({ onAdd, onReject, className }: FileDropZoneProps) 
           e.target.value = ''; // 같은 파일 재선택 가능하도록
         }}
       />
-    </div>
+    </>
   );
 }

@@ -98,7 +98,7 @@ export function App() {
         </section>
 
         <section className="mb-6" aria-label="파일 업로드">
-          <h2 className="mb-1 text-sm font-bold">파일 업로드</h2>
+          <h2 className="mb-1 text-base font-bold">파일 업로드</h2>
           <p className="mb-3 text-xs text-muted-foreground">
             파일에 든 개인정보를 자동으로 가려 다운로드해요. 모든 처리는 이 PC 안에서 이뤄집니다.
           </p>
@@ -159,7 +159,7 @@ export function App() {
           <TabsContent value="filter" className="space-y-4">
             <section className="rounded-lg border bg-card p-4">
               <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-bold">민감정보 카테고리</h2>
+                <h2 className="text-base font-bold">민감정보 카테고리</h2>
                 <Badge variant="accent">
                   {enabledCount}/{CATEGORY_ORDER.length} ON
                 </Badge>
@@ -175,7 +175,7 @@ export function App() {
 
           <TabsContent value="settings" className="space-y-4">
             <section className="rounded-lg border bg-card p-4">
-              <h2 className="mb-1 text-sm font-bold">허용 사이트</h2>
+              <h2 className="mb-1 text-base font-bold">허용 사이트</h2>
               <p className="mb-3 text-xs text-muted-foreground">
                 여기에 등록한 사이트에서는 붙여넣기 알림이 뜨지 않아요.
               </p>
