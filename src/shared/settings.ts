@@ -4,6 +4,8 @@
 import { CATEGORIES, CATEGORY_ORDER } from '@/background/pii/categories';
 import type { MaskMode, PIICategory } from './types';
 
+export type ThemeMode = 'light' | 'dark';
+
 export interface Settings {
   /** 카테고리별 마스킹 활성화 */
   enabledByCategory: Partial<Record<PIICategory, boolean>>;
@@ -15,6 +17,8 @@ export interface Settings {
   userMode: 'default' | 'multilingual' | 'precision_high';
   /** Peak-End 카운터 — 누적 마스킹 통계. 사용자가 보호받았다는 감각을 강화. */
   stats: Stats;
+  /** UI 테마 — 사용자 명시 선택. 기본 'light' (OS prefers-color-scheme 무시). */
+  theme: ThemeMode;
 }
 
 export interface Stats {
@@ -47,6 +51,7 @@ export function defaultSettings(): Settings {
     whitelistedDomains: [],
     userMode: 'default',
     stats: defaultStats(),
+    theme: 'light',
   };
 }
 

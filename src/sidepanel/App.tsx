@@ -37,10 +37,18 @@ export function App() {
     return subscribeSettings(setSettings);
   }, []);
 
+  // 테마 적용 — settings.theme 변경 시 documentElement에 'dark' 클래스 토글.
+  // tokens.css의 :root.dark 셀렉터가 hsl 변수 셋을 다크로 swap.
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', settings.theme === 'dark');
+  }, [settings.theme]);
+
   const persist = (next: Settings) => {
     setSettings(next);
     void saveSettings(next);
   };
+
+  const setTheme = (theme: 'light' | 'dark') => persist({ ...settings, theme });
 
   const setEnabled = (cat: PIICategory, enabled: boolean) =>
     persist({
@@ -175,6 +183,36 @@ export function App() {
 
           <TabsContent value="settings" className="space-y-4">
             <section className="rounded-lg border bg-card p-4">
+              <h2 className="mb-1 text-base font-bold">테마</h2>
+              <p className="mb-3 text-xs text-muted-foreground">
+                기본은 라이트입니다. OS 다크 모드와 무관하게 사용자가 명시 선택해요.
+              </p>
+              <div
+                role="radiogroup"
+                aria-label="테마 선택"
+                className="flex gap-2"
+              >
+                {(
+                  [
+                    { v: 'light' as const, label: '라이트' },
+                    { v: 'dark' as const, label: '다크' },
+                  ]
+                ).map((opt) => (
+                  <Button
+                    key={opt.v}
+                    variant={settings.theme === opt.v ? 'default' : 'outline'}
+                    onClick={() => setTheme(opt.v)}
+                    role="radio"
+                    aria-checked={settings.theme === opt.v}
+                    className="flex-1"
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+            </section>
+
+            <section className="rounded-lg border bg-card p-4">
               <h2 className="mb-1 text-base font-bold">허용 사이트</h2>
               <p className="mb-3 text-xs text-muted-foreground">
                 여기에 등록한 사이트에서는 붙여넣기 알림이 뜨지 않아요.
@@ -218,9 +256,19 @@ export function App() {
           </TabsContent>
         </Tabs>
 
-        <p className="mt-6 text-xs text-muted-foreground">
-          모든 처리는 이 PC 안에서 이뤄집니다.
-        </p>
+        <footer className="mt-6 space-y-1 text-xs text-muted-foreground">
+          <p>모든 처리는 이 PC 안에서 이뤄집니다.</p>
+          <p>
+            <a
+              href="https://github.com/myorange-io/orange-filter/blob/main/docs/PRIVACY_POLICY.md"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              개인정보 처리방침
+            </a>
+          </p>
+        </footer>
       </main>
       <Toaster />
     </TooltipProvider>

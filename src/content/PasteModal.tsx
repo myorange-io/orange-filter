@@ -75,6 +75,13 @@ export function PasteModal({
     return () => clearTimeout(t);
   }, [open]);
 
+  // 테마 적용 — shadow host element에 'dark' 클래스 토글.
+  // tokens.css의 :host(.dark) 셀렉터가 shadow root 내부 변수 셋을 다크로 swap.
+  useEffect(() => {
+    const host = document.getElementById('oi-filter-shadow-host');
+    if (host) host.classList.toggle('dark', settings.theme === 'dark');
+  }, [settings.theme]);
+
   const countsByCategory = useMemo(() => {
     const m = new Map<PIICategory, number>();
     for (const span of detectResult.spans) {
