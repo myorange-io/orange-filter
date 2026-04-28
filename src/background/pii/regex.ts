@@ -261,9 +261,11 @@ const TITLES = [
 ];
 const TITLE_PATTERN = TITLES.join('|');
 // "팀장님" 다음에 조사("께","이","은")가 한글로 붙는 게 흔하므로 trailing boundary 제외.
-// 단성(1자) 또는 복성(2자) + 1~2자 이름 + (선택적) 존칭/직책.
+// 단성(1자) 또는 복성(2자) + 1~3자 이름 + (선택적) 존칭/직책.
+// 1~3자 이름 허용: 단성+1자(김민) ~ 단성+3자(김아무개), 복성+1자 ~ 복성+3자.
+// title context가 강한 시그널이라 길이 확장에도 FP 위험 낮음.
 const NAME_WITH_TITLE = new RegExp(
-  `(?<![가-힣])(?:(?:${DOUBLE_SURNAME_PATTERN})[가-힣]{1,2}|${SURNAME_CLASS}[가-힣]{1,2})(?=\\s?(?:${TITLE_PATTERN}))`,
+  `(?<![가-힣])(?:(?:${DOUBLE_SURNAME_PATTERN})[가-힣]{1,3}|${SURNAME_CLASS}[가-힣]{1,3})(?=\\s?(?:${TITLE_PATTERN}))`,
   'g',
 );
 // 존칭 없이도 매칭하지만 confidence 낮음. 한국 이름은 거의 모두 3자(성+2자) — 2자 매칭은
@@ -279,13 +281,32 @@ const FILENAME_NAME_TOKEN = new RegExp(
   'g',
 );
 
-// 컨텍스트 제한 2자 이름 — nameHintOnly 컬럼(신분증/통장사본/이력서 등)에서만 활성화.
+// 컨텍스트 제한 2~4자 이름 — nameHintOnly 컬럼(신분증/통장사본/이력서 등)에서만 활성화.
 // 양쪽이 한글/영문/숫자가 아닌 boundary(_, -, ., 공백, 줄 시작/끝)에 둘러싸인 경우만 매치.
 // 일반 텍스트에서는 FP가 압도적이라 사용 금지 → detectContextualName으로 별도 export.
+//   2자: 단성+1자(박영/오성/홍진)
+//   3자: 일반 NAME_BARE가 잡지만, NFC 정규화 직후 같은 셀에서 누락된 경우 보강
+//   4자: 단성+3자(김아무개) 또는 복성+2자(남궁아무). 4자는 stoplist 보강 필수.
 const NAME_2CHAR_CONTEXT = new RegExp(
   `(?<![가-힣A-Za-z0-9])${SURNAME_CLASS}[가-힣](?![가-힣A-Za-z0-9])`,
   'g',
 );
+const NAME_4CHAR_CONTEXT = new RegExp(
+  `(?<![가-힣A-Za-z0-9])(?:(?:${DOUBLE_SURNAME_PATTERN})[가-힣]{2}|${SURNAME_CLASS}[가-힣]{3})(?![가-힣A-Za-z0-9])`,
+  'g',
+);
+// 4자 일반 명사 stoplist — 한국 4자 한자어/표현이 boundary에 노출돼도 차단.
+const NAME_4CHAR_STOPLIST: ReadonlySet<string> = new Set([
+  '한국문화','한국정부','한국대표','한국사회','한국전쟁','한국역사',
+  '서울특별','서울대학','서울지역','서울시청',
+  '정부정책','정부지원','정부발표','정부조직',
+  '연구개발','연구결과','연구방법','연구목적','연구진행','연구원장',
+  '주요내용','주요사항','주요인물','주요업무',
+  '심사위원','심사기준','심사방법',
+  '조사결과','조사방법','조사대상',
+  '소속단체','소속기관',
+  '이사회의','이사진행',
+]);
 // 2자 이름 stoplist — boundary 기준으로 매치되더라도 흔한 명사면 차단.
 const NAME_2CHAR_STOPLIST: ReadonlySet<string> = new Set([
   '이상','이하','이전','이후','이외','이내','이래','이번','이때','이런','이상',
@@ -754,6 +775,7 @@ function dedupe(matches: RawMatch[]): RawMatch[] {
  */
 export function detectContextualName(text: string): PIISpan[] {
   const out: PIISpan[] = [];
+  // 2자 이름
   for (const m of text.matchAll(NAME_2CHAR_CONTEXT)) {
     if (m.index === undefined) continue;
     const matched = m[0];
@@ -767,6 +789,23 @@ export function detectContextualName(text: string): PIISpan[] {
       text: matched,
       category: 'person_name',
       confidence: 0.5,
+      source: 'regex',
+    });
+  }
+  // 4자 이름 (단성+3자 또는 복성+2자)
+  for (const m of text.matchAll(NAME_4CHAR_CONTEXT)) {
+    if (m.index === undefined) continue;
+    const matched = m[0];
+    if (NAME_4CHAR_STOPLIST.has(matched)) continue;
+    if (NAME_BARE_STOPLIST.has(matched)) continue;
+    const last = matched[matched.length - 1]!;
+    if ('을를이가은는의에께와과로'.includes(last)) continue;
+    out.push({
+      start: m.index,
+      end: m.index + matched.length,
+      text: matched,
+      category: 'person_name',
+      confidence: 0.4,
       source: 'regex',
     });
   }

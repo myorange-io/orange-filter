@@ -455,4 +455,33 @@ describe('detectContextualName (2자 이름 컨텍스트 매치)', () => {
     expect(detectContextualName('박의 의견').map((s) => s.text)).toEqual([]);
     expect(detectContextualName('이를 보고').map((s) => s.text)).toEqual([]);
   });
+
+  it('4자 이름 컨텍스트 매치 (김아무개_약력 / 남궁아무_이력서)', async () => {
+    const { detectContextualName } = await import('./regex');
+    expect(detectContextualName('6.김아무개_약력_202603.hwp').map((s) => s.text)).toContain(
+      '김아무개',
+    );
+    expect(detectContextualName('남궁아무_이력서.pdf').map((s) => s.text)).toContain(
+      '남궁아무',
+    );
+  });
+
+  it('4자 일반 한자어 차단 (한국문화/연구개발/주요내용)', async () => {
+    const { detectContextualName } = await import('./regex');
+    expect(detectContextualName('_한국문화_').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('_연구개발_').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('_주요내용_').map((s) => s.text)).toEqual([]);
+  });
+});
+
+describe('NAME_WITH_TITLE 4자 이름 (title-context)', () => {
+  it('단성+3자 + 직책 (김아무개 박사 / 정아무개 교수)', () => {
+    expect(detectKoreanPII('김아무개 박사').find((s) => s.category === 'person_name')?.text)
+      .toBe('김아무개');
+  });
+
+  it('복성+3자 + 직책 (남궁아무개 교수)', () => {
+    expect(detectKoreanPII('남궁아무개 교수').find((s) => s.category === 'person_name')?.text)
+      .toBe('남궁아무개');
+  });
 });
