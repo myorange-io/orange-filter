@@ -97,24 +97,6 @@ export function App() {
           <ModelManager />
         </section>
 
-        {/* Peak-End 카운터 — confirm 직후 storage onChanged로 즉시 반영. 0건일 땐 숨김. */}
-        {settings.stats.totalSpansMasked > 0 && (
-          <section
-            className="mb-6 rounded-lg border bg-gradient-to-br from-primary/5 to-primary/10 p-4"
-            aria-label="누적 보호 통계"
-            aria-live="polite"
-          >
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-bold tabular-nums text-primary">
-                {settings.stats.totalSpansMasked.toLocaleString('ko-KR')}
-              </span>
-              <span className="text-sm text-muted-foreground">
-                건의 개인정보를 이 PC가 지켜냈어요
-              </span>
-            </div>
-          </section>
-        )}
-
         <section className="mb-6 space-y-3" aria-label="파일 업로드">
           <FileDropZone
             onAdd={(accepted) => {
