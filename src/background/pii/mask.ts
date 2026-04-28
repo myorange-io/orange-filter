@@ -36,20 +36,18 @@ function maskShape(text: string, category: PIICategory): string {
       return text.replace(/\d/g, 'X');
     }
     case 'mobile':
-    case 'landline':
-      // 끝 4자리 마스킹 (앞부분 보존)
-      return text
-        .split('')
-        .map((ch, i, arr) => {
-          if (!/\d/.test(ch)) return ch;
-          // 뒤에서부터 4번째 이내의 숫자만 마스킹
-          let trailing = 0;
-          for (let j = arr.length - 1; j > i; j--) {
-            if (/\d/.test(arr[j]!)) trailing++;
-          }
-          return trailing < 4 ? 'X' : ch;
-        })
-        .join('');
+    case 'landline': {
+      // 캐리어/지역번호 prefix만 보존, 가운데·뒤는 모두 X.
+      // 010-1234-5678 → 010-XXXX-XXXX, 02-123-4567 → 02-XXX-XXXX
+      let firstGroupKept = false;
+      return text.replace(/\d+/g, (group) => {
+        if (!firstGroupKept) {
+          firstGroupKept = true;
+          return group;
+        }
+        return 'X'.repeat(group.length);
+      });
+    }
     case 'phone_international':
       // 국가코드 + 마지막 4자리 보존, 나머지 마스킹
       return maskDigitsKeepingLast(text, 4);

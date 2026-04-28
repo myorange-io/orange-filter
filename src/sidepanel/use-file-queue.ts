@@ -46,6 +46,7 @@ function suffixedName(original: string, suffix = '_masked', overrideExt?: string
   const idx = original.lastIndexOf('.');
   if (idx < 0) return `${original}${suffix}${overrideExt ?? ''}`;
   const base = original.slice(0, idx);
+  // 원본 확장자 그대로 (대소문자 포함) — exporter가 동일 형식으로 출력.
   const ext = overrideExt ?? original.slice(idx);
   return `${base}${suffix}${ext}`;
 }

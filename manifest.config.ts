@@ -15,7 +15,7 @@ export default defineManifest({
   manifest_version: 3,
   name: '오렌지 필터',
   description:
-    'LLM 붙여넣기·파일 업로드 전에 개인정보를 디바이스 안에서 자동 감지·마스킹합니다.',
+    'LLM 붙여넣기·파일 업로드 전에 개인정보를 이 PC 안에서 자동 감지·마스킹합니다.',
   version: '0.0.1',
   default_locale: 'ko',
   // TODO(S5): 디자인 슬라이스에서 brand orange 아이콘 16/48/128 추가
@@ -41,7 +41,7 @@ export default defineManifest({
   permissions: ['storage', 'sidePanel', 'offscreen'],
   web_accessible_resources: [
     {
-      resources: ['fonts/*', 'src/offscreen/*', 'src/test-page/*'],
+      resources: ['fonts/*', 'ort/*', 'src/offscreen/*', 'src/test-page/*'],
       matches: ['<all_urls>'],
     },
   ],

@@ -14,9 +14,16 @@
 import { pipeline, env, type TokenClassificationPipeline } from '@huggingface/transformers';
 import type { PIICategory, PIISpan } from '@/shared/types';
 
-// 확장 환경에서는 외부 onnxruntime-web의 wasm 경로가 chrome-extension://가 아니라
-// CDN을 향하도록 두는 것이 가장 안정적 (CSP 충돌 회피).
-// 추후 self-host로 전환할 때 env.backends.onnx.wasm.wasmPaths를 'chrome.runtime.getURL(...)'로 교체.
+// MV3 strict CSP는 외부 CDN script 로드를 차단 (`script-src 'self'`).
+// onnxruntime-web의 wasm/mjs 파일을 public/ort/에 self-host하고 chrome-extension:// 경로로 주입.
+// 비-확장 환경(test page, vite dev)에서는 chrome.runtime이 없어 fallback 처리.
+const ortBase =
+  typeof chrome !== 'undefined' && chrome.runtime?.getURL
+    ? chrome.runtime.getURL('ort/')
+    : '/ort/';
+if (env.backends.onnx.wasm) {
+  env.backends.onnx.wasm.wasmPaths = ortBase;
+}
 env.allowLocalModels = false;
 env.useBrowserCache = true; // IndexedDB 캐시 ON
 

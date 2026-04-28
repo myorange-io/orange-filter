@@ -265,12 +265,42 @@ describe('detectKoreanPII', () => {
     expect(name?.text).toBe('김민수');
   });
 
-  it('한국 인명 (bare) → 낮은 confidence (FP 위험 인지)', () => {
+  it('한국 인명 (bare 3자) → 낮은 confidence (FP 위험 인지)', () => {
     const text = '박지성';
     const spans = detectKoreanPII(text);
     const name = spans.find((s) => s.category === 'person_name');
     expect(name).toBeDefined();
     expect(name?.confidence).toBeLessThan(0.7);
+  });
+
+  it('2자 surname-prefix 단어는 매칭 X (이사/주요/성명/도움)', () => {
+    for (const text of ['이사', '주요', '성명', '도움', '구두']) {
+      const spans = detectKoreanPII(text);
+      expect(spans.find((s) => s.category === 'person_name')).toBeUndefined();
+    }
+  });
+
+  it('흔한 3자 일반명사/어미 stoplist (구성원/주시기/이사장/한국의)', () => {
+    for (const text of [
+      '주요 구성원 현황',
+      '작성하여 주시기 바랍니다',
+      '이사장 인사말',
+      '한국의 비영리',
+      '정부의 발표',
+      '여러분 안녕',
+    ]) {
+      const spans = detectKoreanPII(text);
+      const names = spans.filter((s) => s.category === 'person_name');
+      expect(names).toEqual([]);
+    }
+  });
+
+  it('실제 인명 3자는 여전히 매칭 (이의헌/김난일/김강석)', () => {
+    for (const text of ['이의헌 외 6인', '김난일 비상임', '대표 김강석']) {
+      const spans = detectKoreanPII(text);
+      const names = spans.filter((s) => s.category === 'person_name');
+      expect(names.length).toBeGreaterThan(0);
+    }
   });
 
   it('계좌번호와 카드번호가 충돌하면 카드 우선 (Luhn 통과 시)', () => {

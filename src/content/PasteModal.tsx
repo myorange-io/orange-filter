@@ -110,7 +110,7 @@ export function PasteModal({
             개인정보 {totalFound}건 발견
           </DialogTitle>
           <DialogDescription>
-            아래 항목을 가린 뒤 붙여넣을게요. 모든 처리는 이 디바이스 안에서 이뤄집니다.
+            아래 항목을 가린 뒤 붙여넣을게요. 모든 처리는 이 PC 안에서 이뤄집니다.
           </DialogDescription>
         </DialogHeader>
 
@@ -161,7 +161,7 @@ export function PasteModal({
 
         <DialogFooter className="flex-wrap gap-2 sm:gap-2 sm:flex-nowrap">
           <HoldButton onConfirm={handleHoldOverride} className="text-xs">
-            1.5초 꾹 — 원본 그대로
+            꾹 누르면 원본 그대로
           </HoldButton>
           <div className="flex flex-1 justify-end gap-2">
             <Button variant="outline" onClick={onCancel}>

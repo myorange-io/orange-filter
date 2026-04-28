@@ -28,9 +28,18 @@ describe('applyMask shape mode', () => {
     );
   });
 
-  it('휴대폰: 끝 4자리만 X', () => {
+  it('휴대폰: 캐리어 prefix만 보존, 가운데·뒤 X', () => {
     expect(applyMask(span('010-1234-5678', 'mobile'), 'shape')).toBe(
-      '010-1234-XXXX',
+      '010-XXXX-XXXX',
+    );
+  });
+
+  it('유선전화: 지역번호만 보존, 나머지 X', () => {
+    expect(applyMask(span('02-123-4567', 'landline'), 'shape')).toBe(
+      '02-XXX-XXXX',
+    );
+    expect(applyMask(span('031-1234-5678', 'landline'), 'shape')).toBe(
+      '031-XXXX-XXXX',
     );
   });
 
@@ -144,7 +153,7 @@ describe('maskText', () => {
       span('a@b.com', 'email', 21),
     ];
     const result = maskText(text, spans).text;
-    expect(result).toContain('010-1234-XXXX');
+    expect(result).toContain('010-XXXX-XXXX');
     expect(result).toContain('@b.com');
     expect(result).not.toContain('010-1234-5678');
   });
