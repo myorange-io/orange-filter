@@ -26,6 +26,10 @@ export const SUPPORTED_EXTENSIONS = [
   '.txt',
   '.hwp',
   '.hwpx',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp',
 ] as const;
 
 export function isSupported(file: File): boolean {

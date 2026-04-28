@@ -51,9 +51,16 @@ function suffixedName(original: string, suffix = '_masked', overrideExt?: string
   return `${base}${suffix}${ext}`;
 }
 
-/** HWP는 v1에서 round-trip 불가 → TXT로 fallback */
+/** HWP/이미지(OCR)는 v1에서 round-trip 불가 → TXT로 fallback */
 function shouldFallbackToTxt(file: File): boolean {
-  return file.name.toLowerCase().endsWith('.hwp');
+  const name = file.name.toLowerCase();
+  return (
+    name.endsWith('.hwp') ||
+    name.endsWith('.png') ||
+    name.endsWith('.jpg') ||
+    name.endsWith('.jpeg') ||
+    name.endsWith('.webp')
+  );
 }
 
 async function processItem(

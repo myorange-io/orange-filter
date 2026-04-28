@@ -47,6 +47,13 @@ async function load(ext: string): Promise<FormatModule> {
       const m = await import('./hwpx');
       return { parse: m.parseHwpx, exportMasked: m.exportHwpx };
     }
+    case '.png':
+    case '.jpg':
+    case '.jpeg':
+    case '.webp': {
+      const m = await import('./image');
+      return { parse: m.parseImage, exportMasked: m.exportImage };
+    }
     default:
       throw new Error(`지원하지 않는 확장자: ${ext}`);
   }
