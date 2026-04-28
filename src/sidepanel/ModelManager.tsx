@@ -145,12 +145,16 @@ export function ModelManager() {
           const cached = state.phase === 'cached';
           const downloading = state.phase === 'downloading';
 
+          const showButton = !cached || downloading;
           return (
             <li
               key={def.modelId}
               className="rounded-md border bg-background p-3"
               aria-busy={downloading}
             >
+              {/* 사이드패널은 320~500px 좁은 폭이 일반적 — 라벨+버튼 row 강제 시
+                  좁은 폭에서 라벨이 글자 단위로 줄바꿈됨. 본문(아이콘+텍스트) 위,
+                  버튼 아래로 분리해 모든 폭에서 안정. */}
               <div className="flex items-start gap-2">
                 <div className="mt-0.5">
                   {cached ? (
@@ -162,7 +166,7 @@ export function ModelManager() {
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     <span className="text-sm font-bold">{def.labelKo}</span>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                    <span className="text-[10px] text-muted-foreground tabular-nums break-all">
                       {def.modelId.split('/').pop()}
                     </span>
                     {isActive && cached && <Badge>활성</Badge>}
@@ -189,8 +193,10 @@ export function ModelManager() {
                     </p>
                   )}
                 </div>
+              </div>
 
-                <div className="flex shrink-0 items-center gap-1">
+              {showButton && (
+                <div className="mt-3 flex justify-end gap-1">
                   {!cached && !downloading && (
                     <Button
                       size="sm"
@@ -214,7 +220,7 @@ export function ModelManager() {
                     </Button>
                   )}
                 </div>
-              </div>
+              )}
             </li>
           );
         })}
