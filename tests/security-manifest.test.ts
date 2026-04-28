@@ -71,4 +71,18 @@ describe('manifest 보안 회귀', () => {
       }
     }
   });
+
+  test('CSP: WASM은 wasm-unsafe-eval만, unsafe-eval/외부 script-src 차단', () => {
+    const csp = m.content_security_policy?.extension_pages ?? '';
+    // WASM 컴파일에 필요 (ORT + Tesseract). MV3 strict CSP에서 유일하게 허용.
+    expect(csp).toMatch(/'wasm-unsafe-eval'/);
+    // script-src 'self' 명시
+    expect(csp).toMatch(/script-src\s+'self'/);
+    // 일반 unsafe-eval 차단 (보안 회귀 lock)
+    expect(csp.includes("'unsafe-eval'") && !csp.includes("'wasm-unsafe-eval'")).toBe(false);
+    // 외부 cdn 추가 금지
+    for (const dangerous of ['https://', 'http://', 'data:', 'unsafe-inline']) {
+      expect(csp.includes(dangerous), `script-src에 ${dangerous} 차단`).toBe(false);
+    }
+  });
 });
