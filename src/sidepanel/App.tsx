@@ -22,6 +22,7 @@ import {
 import type { MaskMode, PIICategory } from '@/shared/types';
 import { FileDropZone } from './FileDropZone';
 import { FileQueueList } from './FileQueueList';
+import { ModelManager } from './ModelManager';
 import { useFileQueue } from './use-file-queue';
 
 export function App() {
@@ -29,6 +30,7 @@ export function App() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [newDomain, setNewDomain] = useState('');
+  const [activeTab, setActiveTab] = useState<'filter' | 'settings'>('filter');
 
   useEffect(() => {
     void loadSettings().then(setSettings);
@@ -78,18 +80,62 @@ export function App() {
     <TooltipProvider>
       <main className="min-h-screen p-6">
         <header className="mb-6 flex items-center gap-3">
-          <Shield className="h-7 w-7 text-primary" />
-          <div>
+          <Shield className="h-7 w-7 text-primary" aria-hidden />
+          <div className="flex-1">
             <h1 className="text-xl font-bold">오렌지 필터</h1>
             <p className="text-sm text-muted-foreground">
               개인정보를 이 PC 안에서 자동으로 가립니다.
             </p>
+            <p className="text-sm text-muted-foreground">
+              외부 서버에 전송하지 않습니다.
+            </p>
           </div>
         </header>
 
+        {/* 모델 관리 — 헤더 바로 아래 인라인. 사용자가 받기 액션을 즉시 인지하도록 모델 탭은 분리하지 않음. */}
+        <section className="mb-6">
+          <ModelManager />
+        </section>
+
+        {/* Peak-End 카운터 — confirm 직후 storage onChanged로 즉시 반영. 0건일 땐 숨김. */}
+        {settings.stats.totalSpansMasked > 0 && (
+          <section
+            className="mb-6 rounded-lg border bg-gradient-to-br from-primary/5 to-primary/10 p-4"
+            aria-label="누적 보호 통계"
+            aria-live="polite"
+          >
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold tabular-nums text-primary">
+                {settings.stats.totalSpansMasked.toLocaleString('ko-KR')}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                건의 개인정보를 이 PC가 지켜냈어요
+              </span>
+            </div>
+          </section>
+        )}
+
         <section className="mb-6 space-y-3" aria-label="파일 업로드">
           <FileDropZone
-            onAdd={queue.add}
+            onAdd={(accepted) => {
+              const { rejected } = queue.add(accepted);
+              if (rejected.length > 0) {
+                const tooLarge = rejected.filter((r) => r.reason === 'file-too-large');
+                const queueFull = rejected.filter((r) => r.reason === 'queue-total-exceeded');
+                if (tooLarge.length > 0) {
+                  toast({
+                    title: `파일 용량 초과 (100MB)`,
+                    description: `${tooLarge.length}개 파일이 100MB 초과로 제외됐어요. 분할 후 다시 시도해 주세요.`,
+                  });
+                }
+                if (queueFull.length > 0) {
+                  toast({
+                    title: `큐 총합 한도(500MB) 초과`,
+                    description: `${queueFull.length}개 파일이 큐 한도 초과로 제외됐어요. 처리된 파일을 큐에서 제거 후 추가해 주세요.`,
+                  });
+                }
+              }
+            }}
             onReject={(files) => {
               toast({
                 title: '지원하지 않는 파일',
@@ -109,7 +155,10 @@ export function App() {
           )}
         </section>
 
-        <Tabs defaultValue="filter">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as 'filter' | 'settings')}
+        >
           <TabsList className="w-full">
             <TabsTrigger value="filter" className="flex-1">
               필터
@@ -138,9 +187,9 @@ export function App() {
 
           <TabsContent value="settings" className="space-y-4">
             <section className="rounded-lg border bg-card p-4">
-              <h2 className="mb-1 text-sm font-bold">화이트리스트 도메인</h2>
+              <h2 className="mb-1 text-sm font-bold">허용 사이트</h2>
               <p className="mb-3 text-xs text-muted-foreground">
-                여기에 등록한 도메인에서는 paste 모달이 뜨지 않습니다.
+                여기에 등록한 사이트에서는 붙여넣기 알림이 뜨지 않아요.
               </p>
               <div className="flex gap-2">
                 <Label htmlFor="wl-input" className="sr-only">

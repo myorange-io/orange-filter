@@ -113,11 +113,14 @@ const EMAIL_PATTERN =
 // ICAO 9303 기준. 일부 구버전은 알파벳+8자리
 const PASSPORT_KR_PATTERN = /\b[MRSO]\d{8}\b/g;
 
-// 미국 SSN: AAA-GG-SSSS, 단 0/666/9XX prefix는 미발급 → 제외
-const SSN_US_PATTERN = /\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b/g;
+// 한국 운전면허번호: AA-BB-CCCCCC-DD (지역2 + 발급연도2 + 일련6 + 검증2 = 12자리).
+// 분리자 필수 — 분리자 없으면 일반 12자리 숫자열과 구분 불가하여 FP 폭증.
+// 지역코드는 11~28(서울~인천 등)로 보수적으로 제한.
+const DRIVER_LICENSE_PATTERN = /\b(?:1[1-9]|2[0-8])-\d{2}-\d{6}-\d{2}\b/g;
 
-// 국제 전화 (E.164): +국가코드 + 숫자 (4-14자리), 공백/하이픈 허용
-const INTL_PHONE_PATTERN = /(?:^|[^\w+])\+\d{1,3}[\s-]?\d{1,4}[\s-]?\d{2,4}[\s-]?\d{2,4}(?:[\s-]?\d{2,4})?\b/g;
+// 한국 법인등록번호: XXXXXX-XXXXXXX (6+7=13자리). 등기 법인 전용.
+// 사업자등록번호(10자리)와 형태가 다름. 첫 6자리는 본·지점 분류·일련번호.
+const CORPORATE_REG_PATTERN = /\b\d{6}-\d{7}\b/g;
 
 // 자격정보 prefix-based
 const CREDENTIAL_PATTERNS = [
@@ -164,6 +167,7 @@ const NAME_BARE = new RegExp(
 const NAME_BARE_STOPLIST: ReadonlySet<string> = new Set([
   // -시기/-니다 같은 동사 어미
   '주시기', '주신분', '주신다', '주시는', '주십시', '주시고', '주실수', '주는데',
+  '주세요', '주실까', '주십니', '주셔서', '주셨어', '주실분', '주시오', '주신분',
   // 자주 쓰이는 명사
   '구성원', '이사장', '이사진', '이사회', '이사들', '이사진', '강조점', '강의안',
   '강의록', '강의실', '강사진', '강의실', '강의를', '강조한', '강조함',
@@ -375,37 +379,39 @@ function detectPassport(text: string): RawMatch[] {
   return out;
 }
 
-function detectSSNUS(text: string): RawMatch[] {
+function detectDriverLicense(text: string): RawMatch[] {
   const out: RawMatch[] = [];
-  for (const m of text.matchAll(SSN_US_PATTERN)) {
+  for (const m of text.matchAll(DRIVER_LICENSE_PATTERN)) {
     if (m.index === undefined) continue;
     out.push({
       start: m.index,
       end: m.index + m[0].length,
       text: m[0],
-      category: 'ssn_us',
-      confidence: 0.9,
+      category: 'driver_license',
+      confidence: 0.85,
     });
   }
   return out;
 }
 
-function detectInternationalPhone(text: string): RawMatch[] {
+function detectCorporateRegistration(text: string): RawMatch[] {
   const out: RawMatch[] = [];
-  for (const m of text.matchAll(INTL_PHONE_PATTERN)) {
+  for (const m of text.matchAll(CORPORATE_REG_PATTERN)) {
     if (m.index === undefined) continue;
-    // 매치된 전체에서 leading 비단어/공백을 제거하고 +로 시작하는 부분만 추출
-    const plusIdx = m[0].indexOf('+');
-    if (plusIdx < 0) continue;
-    const start = m.index + plusIdx;
-    const matched = m[0].slice(plusIdx);
-    const digits = digitsOnly(matched);
-    if (digits.length < 7 || digits.length > 15) continue;
+    const digits = digitsOnly(m[0]);
+    if (digits.length !== 13) continue;
+    // 노이즈 차단: 전부 같은 숫자 (000000-0000000 등)
+    if (/^(\d)\1+$/.test(digits)) continue;
+    // RRN/외국인등록번호와 형태 충돌: 7자리 suffix가 [1-8]로 시작하면 RRN 형태.
+    // 검증 통과 시 detectRRN/detectForeigner가 잡고, 실패 시 어떤 카테고리도 잡지 않음
+    // (typo이거나 NOT-PII). 법인등록번호로 promote하지 않는다.
+    if (/^[1-8]/.test(digits.slice(6))) continue;
+    // 진짜 법인등록번호의 7자리 suffix는 0 또는 9로 시작하는 일련번호 (등기 분류).
     out.push({
-      start,
-      end: start + matched.length,
-      text: matched,
-      category: 'phone_international',
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'corporate_registration',
       confidence: 0.8,
     });
   }
@@ -457,15 +463,15 @@ function detectKoreanName(text: string): RawMatch[] {
 const CATEGORY_PRIORITY: Record<PIICategory, number> = {
   rrn: 100,
   foreign_registration: 99,
+  driver_license: 98,
   passport: 97,
-  ssn_us: 96,
   credential: 95,
   card: 90,
+  corporate_registration: 86,
   business_number: 85,
   account: 80,
   mobile: 70,
   landline: 65,
-  phone_international: 67,
   email: 60,
   person_name: 50,
   address: 40,
@@ -502,13 +508,13 @@ export function detectKoreanPII(text: string): PIISpan[] {
     ...detectRRN(text),
     ...detectForeignerRegistration(text),
     ...detectPassport(text),
-    ...detectSSNUS(text),
+    ...detectDriverLicense(text),
+    ...detectCorporateRegistration(text),
     ...detectBusinessNumber(text),
     ...detectCard(text),
     ...detectAccount(text),
     ...detectMobile(text),
     ...detectLandline(text),
-    ...detectInternationalPhone(text),
     ...detectEmail(text),
     ...detectCredential(text),
     ...detectKoreanName(text),

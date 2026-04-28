@@ -4,6 +4,7 @@
 import { Switch } from './switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
 import { CATEGORIES, CATEGORY_ORDER } from '@/background/pii/categories';
+import { getMaskExample } from '@/background/pii/mask';
 import type { MaskMode, PIICategory } from '@/shared/types';
 
 const MODE_LABELS: Record<MaskMode, string> = {
@@ -68,12 +69,18 @@ export function CategoryToggleList({
               <div className="mt-2">
                 <Select value={mode} onValueChange={(v) => onModeChange(id, v as MaskMode)}>
                   <SelectTrigger className="h-8 w-full text-xs" aria-label={`${def.labelKo} 마스킹 모드`}>
-                    <SelectValue />
+                    {/* 트리거에는 모드 라벨만. 드롭다운 펼치면 옵션마다 예시. */}
+                    <SelectValue>{MODE_LABELS[mode]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {(Object.keys(MODE_LABELS) as MaskMode[]).map((m) => (
                       <SelectItem key={m} value={m} className="text-xs">
-                        {MODE_LABELS[m]}
+                        <span className="flex items-baseline gap-2">
+                          <span>{MODE_LABELS[m]}</span>
+                          <span className="text-[10px] text-muted-foreground tabular-nums">
+                            {getMaskExample(id, m)}
+                          </span>
+                        </span>
                       </SelectItem>
                     ))}
                   </SelectContent>

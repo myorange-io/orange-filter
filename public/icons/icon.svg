@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- 오렌지 필터 — Shield + 필터 슬릿 모티프 -->
+  <!-- 배경: 라운드 사각형, 브랜드 오렌지 (Orangeimpact 700) -->
+  <rect width="128" height="128" rx="28" fill="#FF6F1F"/>
+
+  <!-- 방패 본체: 흰색 -->
+  <path d="M64 22 L96 34 L96 68 C96 88 82 102 64 110 C46 102 32 88 32 68 L32 34 Z"
+        fill="#FFFFFF"/>
+
+  <!-- 필터 슬릿: 방패 안쪽에 가로 3줄 (개인정보 가림 모티프) -->
+  <rect x="46" y="50" width="36" height="4" rx="2" fill="#FF6F1F"/>
+  <rect x="46" y="62" width="28" height="4" rx="2" fill="#FF6F1F" opacity="0.7"/>
+  <rect x="46" y="74" width="32" height="4" rx="2" fill="#FF6F1F" opacity="0.5"/>
+</svg>
