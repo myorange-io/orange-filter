@@ -39,5 +39,42 @@
     --ring: 21 100% 56%;                /* primary */
 
     --radius: 0.5rem;
+
+    /* MV3 sidepanel + Shadow DOM 모두 사용자 OS 다크 모드 시 자동 전환 */
+    color-scheme: light dark;
+  }
+
+  /* prefers-color-scheme: dark — neutral-900 surface + neutral-50 text.
+     primary는 desaturated 18% (S 100→82) — 다크 배경에서 눈부심 완화. */
+  @media (prefers-color-scheme: dark) {
+    :root,
+    :host {
+      --background: 0 0% 9%;             /* neutral-900 #171717 */
+      --foreground: 0 0% 90%;            /* off-white E5E5E5, 순백 X */
+      --card: 0 0% 11%;                  /* slightly elevated #1C1C1C */
+      --card-foreground: 0 0% 90%;
+      --popover: 0 0% 13%;
+      --popover-foreground: 0 0% 90%;
+
+      /* brand desaturated for dark surface */
+      --primary: 21 82% 56%;
+      --primary-foreground: 0 0% 9%;
+
+      --secondary: 212 80% 55%;
+      --secondary-foreground: 0 0% 9%;
+
+      /* tonal — muted darker, accent uses orange-950 base */
+      --muted: 0 0% 16%;                 /* #292929 */
+      --muted-foreground: 0 0% 64%;      /* #A3A3A3 */
+      --accent: 17 60% 18%;              /* dark orange tint */
+      --accent-foreground: 21 100% 75%;  /* light orange */
+
+      --destructive: 0 75% 55%;
+      --destructive-foreground: 0 0% 98%;
+
+      --border: 0 0% 20%;                /* #333333 */
+      --input: 0 0% 20%;
+      --ring: 21 82% 56%;
+    }
   }
 }
