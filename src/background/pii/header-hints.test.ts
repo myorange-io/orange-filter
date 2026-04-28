@@ -3,6 +3,7 @@ import {
   categoryForHeader,
   detectHeaderRow,
   findInlineLabels,
+  isNameHintHeader,
   normalizeHeader,
 } from './header-hints';
 
@@ -110,6 +111,40 @@ describe('detectHeaderRow', () => {
     const result = detectHeaderRow(rows);
     expect(result?.rowIndex).toBe(2);
     expect(result?.categoryByCol.size).toBe(3);
+  });
+});
+
+describe('isNameHintHeader', () => {
+  it('첨부 파일 컬럼명 매치', () => {
+    expect(isNameHintHeader('신분증')).toBe(true);
+    expect(isNameHintHeader('통장사본')).toBe(true);
+    expect(isNameHintHeader('이력서')).toBe(true);
+    expect(isNameHintHeader('CV')).toBe(true);
+    expect(isNameHintHeader('약력')).toBe(true);
+  });
+
+  it('일반 헤더는 미매치', () => {
+    expect(isNameHintHeader('성명')).toBe(false);
+    expect(isNameHintHeader('연락처')).toBe(false);
+    expect(isNameHintHeader('비고')).toBe(false);
+  });
+});
+
+describe('detectHeaderRow with nameHintCols', () => {
+  it('forcedCategory + nameHint 컬럼 분리 반환', () => {
+    const rows = [
+      ['no.', '소속', '성명', '연락처', '비고', '신분증', '통장사본', '이력서'],
+    ];
+    const r = detectHeaderRow(rows);
+    expect(r?.categoryByCol.get(1)).toBe('organization');
+    expect(r?.categoryByCol.get(2)).toBe('person_name');
+    expect(r?.categoryByCol.get(3)).toBe('mobile');
+    expect(r?.nameHintCols.has(5)).toBe(true);
+    expect(r?.nameHintCols.has(6)).toBe(true);
+    expect(r?.nameHintCols.has(7)).toBe(true);
+    // '비고'는 어떤 카테고리도 아님
+    expect(r?.categoryByCol.has(4)).toBe(false);
+    expect(r?.nameHintCols.has(4)).toBe(false);
   });
 });
 

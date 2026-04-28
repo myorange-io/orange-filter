@@ -427,3 +427,32 @@ describe('detectKoreanPII', () => {
     expect(names.length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe('detectContextualName (2자 이름 컨텍스트 매치)', () => {
+  it('파일명 안 _박영. / _오성_ / _홍진. 매치', async () => {
+    const { detectContextualName } = await import('./regex');
+    expect(detectContextualName('4.통장사본_박영.pdf').map((s) => s.text)).toEqual(['박영']);
+    expect(detectContextualName('12.오성_신분증_1.jpg').map((s) => s.text)).toEqual(['오성']);
+    expect(detectContextualName('19.신분증사본_홍진.png').map((s) => s.text)).toEqual(['홍진']);
+  });
+
+  it('boundary 양쪽이 한글이면 미매치 (일반 단어 차단)', async () => {
+    const { detectContextualName } = await import('./regex');
+    // "이사회의" — 양쪽 한글로 둘러싸여 매치 X
+    expect(detectContextualName('이사회의 결정사항').map((s) => s.text)).toEqual([]);
+  });
+
+  it('stoplist 일반 명사 차단 (이상/주요/도움/소속/연구)', async () => {
+    const { detectContextualName } = await import('./regex');
+    expect(detectContextualName('보고 이상 없음').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('항목 주요 사항').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('필요 도움 요청').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('국내 연구 동향').map((s) => s.text)).toEqual([]);
+  });
+
+  it('이름 끝글자가 명백한 조사면 차단 (이의/김의/박이)', async () => {
+    const { detectContextualName } = await import('./regex');
+    expect(detectContextualName('박의 의견').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('이를 보고').map((s) => s.text)).toEqual([]);
+  });
+});

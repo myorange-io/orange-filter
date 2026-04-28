@@ -98,29 +98,70 @@ export function categoryForHeader(headerText: string): PIICategory | undefined {
   return KEYWORD_TO_CATEGORY.get(k);
 }
 
+// =============================================================================
+// 이름 힌트 헤더 — 셀 전체가 이름은 아니지만 첨부 파일명 등에 이름이 포함될
+// 가능성이 높은 컬럼. forcedCategory가 아닌 nameHintOnly로 표시되어
+// 컨텍스트 제한 2자 이름 매칭이 추가로 활성화된다.
+// =============================================================================
+const NAME_HINT_HEADER_KEYWORDS: ReadonlyArray<string> = [
+  '신분증', '신분증사본', '주민등록증사본', '주민증사본', '면허증사본',
+  '통장', '통장사본', '계좌사본',
+  '이력서', '이력', '경력서', '경력', '약력',
+  '면허', '면허증', '운전면허',
+  '여권사본',
+  'cv', 'resume',
+];
+const NAME_HINT_HEADER_SET: ReadonlySet<string> = new Set(
+  NAME_HINT_HEADER_KEYWORDS.map((s) => normalizeHeader(s)).filter((s) => s.length > 0),
+);
+
+/** 헤더가 "이름 힌트" 컬럼이면 true (예: 신분증/통장사본/이력서). */
+export function isNameHintHeader(headerText: string): boolean {
+  const k = normalizeHeader(headerText);
+  return k.length > 0 && NAME_HINT_HEADER_SET.has(k);
+}
+
 /**
  * 시트의 처음 N행 중 "헤더 행"으로 가장 적합한 행 인덱스 반환.
- * 휴리스틱: 사전과 매치되는 셀이 가장 많은 행. 매치 0건이면 undefined.
+ * 휴리스틱: forcedCategory + nameHint 합산 매치 셀이 가장 많은 행.
+ * 매치 0건이면 undefined.
  *
  * `rows`는 시트의 처음 몇 행(원본 텍스트 그대로). 빈 셀은 빈 문자열.
  */
 export function detectHeaderRow(
   rows: ReadonlyArray<ReadonlyArray<string>>,
   scanLimit = 5,
-): { rowIndex: number; categoryByCol: Map<number, PIICategory> } | undefined {
-  let best: { rowIndex: number; categoryByCol: Map<number, PIICategory> } | undefined;
+):
+  | {
+      rowIndex: number;
+      categoryByCol: Map<number, PIICategory>;
+      nameHintCols: Set<number>;
+    }
+  | undefined {
+  let best:
+    | {
+        rowIndex: number;
+        categoryByCol: Map<number, PIICategory>;
+        nameHintCols: Set<number>;
+      }
+    | undefined;
   const limit = Math.min(scanLimit, rows.length);
   for (let r = 0; r < limit; r++) {
     const row = rows[r];
     if (!row) continue;
     const map = new Map<number, PIICategory>();
+    const hints = new Set<number>();
     for (let c = 0; c < row.length; c++) {
-      const cat = categoryForHeader(row[c] ?? '');
+      const cell = row[c] ?? '';
+      const cat = categoryForHeader(cell);
       if (cat) map.set(c, cat);
+      else if (isNameHintHeader(cell)) hints.add(c);
     }
-    if (map.size === 0) continue;
-    if (!best || map.size > best.categoryByCol.size) {
-      best = { rowIndex: r, categoryByCol: map };
+    const score = map.size + hints.size;
+    if (score === 0) continue;
+    const bestScore = best ? best.categoryByCol.size + best.nameHintCols.size : 0;
+    if (score > bestScore) {
+      best = { rowIndex: r, categoryByCol: map, nameHintCols: hints };
     }
   }
   return best;

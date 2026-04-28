@@ -37,6 +37,7 @@ export async function parseXlsx(file: File): Promise<ParseResult> {
       ? range.s.r + headerInfo.rowIndex
       : undefined;
     const categoryByCol = headerInfo?.categoryByCol;
+    const nameHintCols = headerInfo?.nameHintCols;
 
     for (let R = range.s.r; R <= range.e.r; R++) {
       const rowCells: string[] = [];
@@ -54,10 +55,13 @@ export async function parseXlsx(file: File): Promise<ParseResult> {
           // 파싱 시 NFC로 정규화. 의미 동일, OS 표시 무관.
           const text = cell.v.normalize('NFC');
           const seg: Segment = { id: cellId(name, addr), text };
+          const colIdx = C - range.s.c;
           if (isHeaderRow) {
             seg.isHeader = true;
-          } else if (categoryByCol?.has(C - range.s.c)) {
-            seg.forcedCategory = categoryByCol.get(C - range.s.c);
+          } else if (categoryByCol?.has(colIdx)) {
+            seg.forcedCategory = categoryByCol.get(colIdx);
+          } else if (nameHintCols?.has(colIdx)) {
+            seg.nameHintOnly = true;
           }
           segments.push(seg);
           rowCells.push(text);

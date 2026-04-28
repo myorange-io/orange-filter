@@ -4,7 +4,7 @@
 
 import type { Segment } from './parsers/types';
 import { maskText } from '@/background/pii/mask';
-import { detectKoreanPII } from '@/background/pii/regex';
+import { detectContextualName, detectKoreanPII } from '@/background/pii/regex';
 import { findInlineLabels } from '@/background/pii/header-hints';
 import type { PIISpan } from '@/shared/types';
 
@@ -49,7 +49,10 @@ export function maskSegments(segments: ReadonlyArray<Segment>): MaskSegmentsResu
       confidence: 1,
       source: 'regex',
     }));
-    const all = [...detected, ...inline];
+    // nameHintOnly 컬럼(신분증/통장사본/이력서 등)에서는 컨텍스트 제한 2자 이름까지 추가 매칭.
+    // 일반 detect는 3자만 잡으므로 _박영.pdf 같은 짧은 이름이 누락됨.
+    const contextual = seg.nameHintOnly ? detectContextualName(seg.text) : [];
+    const all = [...detected, ...inline, ...contextual];
     if (all.length === 0) {
       out.set(seg.id, seg.text);
       continue;

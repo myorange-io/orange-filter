@@ -279,6 +279,37 @@ const FILENAME_NAME_TOKEN = new RegExp(
   'g',
 );
 
+// 컨텍스트 제한 2자 이름 — nameHintOnly 컬럼(신분증/통장사본/이력서 등)에서만 활성화.
+// 양쪽이 한글/영문/숫자가 아닌 boundary(_, -, ., 공백, 줄 시작/끝)에 둘러싸인 경우만 매치.
+// 일반 텍스트에서는 FP가 압도적이라 사용 금지 → detectContextualName으로 별도 export.
+const NAME_2CHAR_CONTEXT = new RegExp(
+  `(?<![가-힣A-Za-z0-9])${SURNAME_CLASS}[가-힣](?![가-힣A-Za-z0-9])`,
+  'g',
+);
+// 2자 이름 stoplist — boundary 기준으로 매치되더라도 흔한 명사면 차단.
+const NAME_2CHAR_STOPLIST: ReadonlySet<string> = new Set([
+  '이상','이하','이전','이후','이외','이내','이래','이번','이때','이런','이상',
+  '이미','이것','이거','이게','이런','이걸','이를','이는','이로','이와','이도',
+  '김치','김밥','김장',
+  '주요','주말','주중','주차','주문','주제','주의','주기','주로',
+  '도움','도시','도구','도장','도면','도서','도착','도전','도덕','도교',
+  '서울','서명','서식','서류','서신','서재','서버',
+  '소속','소개','소장','소요','소득','소비','소수','소형','소셜',
+  '신청','신규','신문','신경','신용','신분','신호',
+  '연구','연락','연결','연합','연속','연관','연수','연차','연단',
+  '심사','심층','심리','심야','심야',
+  '하나','하루','하반','하층',
+  '백서','백분','백업','백두',
+  '문의','문제','문서','문화','문구',
+  '강조','강의','강사','강력','강수',
+  '한국','한자','한글','한정','한반','한식','한복',
+  '정도','정부','정보','정의','정리','정확','정상','정원','정직',
+  '조사','조선','조직','조건','조절','조합','조용','조속',
+  '변경','변동','변화','변수','변형',
+  '오늘','오후','오전','오류','오해',
+  '여러','여행','여건','여유','여전','여백',
+]);
+
 // 3자 매칭 중에도 흔한 일반명사/어미는 stoplist로 차단. 주기적으로 갱신 필요.
 const NAME_BARE_STOPLIST: ReadonlySet<string> = new Set([
   // -시기/-니다 같은 동사 어미
@@ -709,6 +740,37 @@ function dedupe(matches: RawMatch[]): RawMatch[] {
     kept.push(m);
   }
   return kept.sort((a, b) => a.start - b.start);
+}
+
+/**
+ * 컨텍스트 제한 2자 한국 이름 detector — nameHintOnly 컬럼(신분증/통장사본/이력서 등)
+ * 셀에서만 호출. 일반 텍스트에서는 사용 금지 (FP 압도적).
+ *
+ * 매치 조건:
+ * - 양쪽이 한글/영문/숫자가 아닌 boundary (`_`, `-`, `.`, 공백 등)
+ * - top 50 surname + 1글자 한글
+ * - stoplist 미포함
+ * - 마지막 글자가 명백한 조사 아님
+ */
+export function detectContextualName(text: string): PIISpan[] {
+  const out: PIISpan[] = [];
+  for (const m of text.matchAll(NAME_2CHAR_CONTEXT)) {
+    if (m.index === undefined) continue;
+    const matched = m[0];
+    if (NAME_2CHAR_STOPLIST.has(matched)) continue;
+    if (NAME_BARE_STOPLIST.has(matched)) continue;
+    const last = matched[matched.length - 1]!;
+    if ('을를이가은는의에께와과로'.includes(last)) continue;
+    out.push({
+      start: m.index,
+      end: m.index + matched.length,
+      text: matched,
+      category: 'person_name',
+      confidence: 0.5,
+      source: 'regex',
+    });
+  }
+  return out;
 }
 
 // =============================================================================

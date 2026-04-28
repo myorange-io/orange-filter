@@ -19,6 +19,12 @@ export interface Segment {
    * (예: "성명" 컬럼의 모든 데이터 셀 → person_name)
    */
   forcedCategory?: PIICategory;
+  /**
+   * 셀이 사람 이름을 포함할 가능성이 높은 컬럼 (예: "신분증", "통장사본",
+   * "이력서" — 보통 첨부 파일명). 셀 전체를 강제 마스킹하지는 않고,
+   * 컨텍스트 제한 2자 이름 매치를 추가로 수행해 _박영.pdf 같은 짧은 이름까지 잡는다.
+   */
+  nameHintOnly?: boolean;
 }
 
 export interface ParseResult {

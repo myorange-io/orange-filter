@@ -19,6 +19,7 @@ export async function parseCsv(file: File): Promise<ParseResult> {
   const headerInfo = detectHeaderRow(previewRows);
   const headerRowIndex = headerInfo?.rowIndex;
   const categoryByCol = headerInfo?.categoryByCol;
+  const nameHintCols = headerInfo?.nameHintCols;
 
   const segments: Segment[] = [];
   rows.forEach((row, ri) => {
@@ -33,6 +34,8 @@ export async function parseCsv(file: File): Promise<ParseResult> {
         seg.isHeader = true;
       } else if (categoryByCol?.has(ci)) {
         seg.forcedCategory = categoryByCol.get(ci);
+      } else if (nameHintCols?.has(ci)) {
+        seg.nameHintOnly = true;
       }
       segments.push(seg);
     });
