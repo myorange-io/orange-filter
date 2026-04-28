@@ -156,6 +156,50 @@ const FAKE_BY_CATEGORY: Record<PIICategory, string> = {
 };
 
 // =============================================================================
+// 카테고리별 샘플 (드롭다운 예시 표시용)
+// =============================================================================
+
+const SAMPLE_BY_CATEGORY: Record<PIICategory, string> = {
+  rrn: '900101-1234568',
+  foreign_registration: '850515-5234560',
+  driver_license: '11-25-123456-78',
+  mobile: '010-1234-5678',
+  landline: '02-1234-5678',
+  account: '110-234-567890',
+  card: '4111 1111 1111 1111',
+  business_number: '120-86-12347',
+  corporate_registration: '130111-0006246',
+  passport: 'M12345678',
+  person_name: '홍길동',
+  email: 'minsu@example.com',
+  address: '서울특별시 강남구',
+  url: 'https://example.com',
+  date: '1985-03-12',
+  credential: 'sk-abc1234567890',
+  organization: '○○재단',
+};
+
+/**
+ * 사용자에게 마스킹 모드의 결과를 미리 보여주기 위한 카테고리별 샘플 변환.
+ * 드롭다운 옵션 옆에 회색 부기로 표시.
+ */
+export function getMaskExample(category: PIICategory, mode: MaskMode): string {
+  const sample = SAMPLE_BY_CATEGORY[category];
+  if (mode === 'remove') return '(삭제)';
+  return applyMask(
+    {
+      start: 0,
+      end: sample.length,
+      text: sample,
+      category,
+      confidence: 1,
+      source: 'regex',
+    },
+    mode,
+  );
+}
+
+// =============================================================================
 // 단일 스팬 마스킹
 // =============================================================================
 
