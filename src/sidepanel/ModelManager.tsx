@@ -131,10 +131,12 @@ export function ModelManager() {
   return (
     <section className="rounded-lg border bg-card p-4">
       <h2 className="mb-1 text-sm font-bold">모델 관리</h2>
-      <p className="mb-3 text-xs text-muted-foreground">
-        한국어 정밀 보호 모델을 설치해주세요. 지금은 기본 패턴 보호만 동작해요. 모든 처리는 이
-        PC 안에서 이뤄집니다.
-      </p>
+      {!allCached && (
+        <p className="mb-3 text-xs text-muted-foreground">
+          한국어 정밀 보호 모델을 설치해주세요. 지금은 기본 패턴 보호만 동작해요. 모든 처리는 이
+          PC 안에서 이뤄집니다.
+        </p>
+      )}
 
       <ul className="space-y-3" aria-label="모델 목록">
         {ALL_MODELS.map((def) => {

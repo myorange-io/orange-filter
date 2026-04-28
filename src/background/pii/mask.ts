@@ -111,24 +111,25 @@ function maskShape(text: string, category: PIICategory): string {
 // 태그 치환
 // =============================================================================
 
+// 한국어 사용자 친화 태그. 영어 약어보다 paste 결과를 사람이 읽고 검토할 때 명확.
 const TAG_BY_CATEGORY: Record<PIICategory, string> = {
-  rrn: '[RRN]',
-  foreign_registration: '[FRN]',
-  driver_license: '[DL]',
-  passport: '[PASSPORT]',
-  credential: '[CREDENTIAL]',
-  card: '[CARD]',
-  business_number: '[BIZ_NO]',
-  corporate_registration: '[CORP_NO]',
-  account: '[ACCOUNT]',
-  mobile: '[PHONE]',
-  landline: '[PHONE]',
-  email: '[EMAIL]',
-  person_name: '[NAME]',
-  address: '[ADDRESS]',
-  organization: '[ORG]',
+  rrn: '[주민등록번호]',
+  foreign_registration: '[외국인등록번호]',
+  driver_license: '[운전면허번호]',
+  passport: '[여권번호]',
+  credential: '[비밀키]',
+  card: '[카드번호]',
+  business_number: '[사업자등록번호]',
+  corporate_registration: '[법인등록번호]',
+  account: '[계좌번호]',
+  mobile: '[휴대폰]',
+  landline: '[유선전화]',
+  email: '[이메일]',
+  person_name: '[이름]',
+  address: '[주소]',
+  organization: '[조직명]',
   url: '[URL]',
-  date: '[DATE]',
+  date: '[날짜]',
 };
 
 // =============================================================================

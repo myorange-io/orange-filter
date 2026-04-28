@@ -92,18 +92,18 @@ describe('applyMask shape mode', () => {
   });
 });
 
-describe('applyMask tag mode', () => {
+describe('applyMask tag mode (한국어)', () => {
   it('RRN tag', () => {
-    expect(applyMask(span('950510-1234567', 'rrn'), 'tag')).toBe('[RRN]');
+    expect(applyMask(span('950510-1234567', 'rrn'), 'tag')).toBe('[주민등록번호]');
   });
 
-  it('mobile/landline 모두 [PHONE]으로 통일', () => {
-    expect(applyMask(span('010-1234-5678', 'mobile'), 'tag')).toBe('[PHONE]');
-    expect(applyMask(span('02-123-4567', 'landline'), 'tag')).toBe('[PHONE]');
+  it('mobile/landline 한국어 태그 (휴대폰/유선전화)', () => {
+    expect(applyMask(span('010-1234-5678', 'mobile'), 'tag')).toBe('[휴대폰]');
+    expect(applyMask(span('02-123-4567', 'landline'), 'tag')).toBe('[유선전화]');
   });
 
-  it('credential은 [CREDENTIAL]', () => {
-    expect(applyMask(span('sk-x', 'credential'), 'tag')).toBe('[CREDENTIAL]');
+  it('credential은 [비밀키]', () => {
+    expect(applyMask(span('sk-x', 'credential'), 'tag')).toBe('[비밀키]');
   });
 });
 
@@ -161,14 +161,14 @@ describe('maskText', () => {
     const result = maskText(text, spans, {
       modeByCategory: { email: 'tag', rrn: 'fake' },
     }).text;
-    expect(result).toBe('[EMAIL] 그리고 900101-1234567');
+    expect(result).toBe('[이메일] 그리고 900101-1234567');
   });
 
   it('defaultMode가 modeByCategory의 fallback', () => {
     const text = '카드 4242-4242-4242-4242';
     const spans: PIISpan[] = [span('4242-4242-4242-4242', 'card', 3)];
     const result = maskText(text, spans, { defaultMode: 'tag' }).text;
-    expect(result).toBe('카드 [CARD]');
+    expect(result).toBe('카드 [카드번호]');
   });
 
   it('enabledByCategory: 비활성 카테고리는 건드리지 않음', () => {
@@ -224,6 +224,6 @@ describe('maskText', () => {
       span('a@b.com', 'email', 0),
     ];
     const result = maskText(text, spans, { defaultMode: 'tag' }).text;
-    expect(result).toBe('[EMAIL] 그리고 [EMAIL]');
+    expect(result).toBe('[이메일] 그리고 [이메일]');
   });
 });
