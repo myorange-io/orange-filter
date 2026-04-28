@@ -228,32 +228,56 @@ describe('detectKoreanPII', () => {
     expect(passport?.text).toBe('M12345678');
   });
 
-  it('미국 SSN 매칭 (정상 prefix)', () => {
-    const text = 'SSN: 123-45-6789';
+  it('운전면허번호 매칭 (12자리 4-segment)', () => {
+    const text = '운전면허 11-25-123456-78 정보입니다.';
     const spans = detectKoreanPII(text);
-    expect(spans.find((s) => s.category === 'ssn_us')?.text).toBe(
-      '123-45-6789',
-    );
+    const dl = spans.find((s) => s.category === 'driver_license');
+    expect(dl?.text).toBe('11-25-123456-78');
   });
 
-  it('미국 SSN 미매칭 (000/666/9XX prefix)', () => {
-    const cases = ['000-12-3456', '666-12-3456', '900-12-3456'];
-    for (const ssn of cases) {
-      const spans = detectKoreanPII(`SSN: ${ssn}`);
-      expect(
-        spans.find((s) => s.category === 'ssn_us'),
-        `걸리면 안 됨: ${ssn}`,
-      ).toBeUndefined();
-    }
+  it('운전면허번호 미매칭 — 분리자 없거나 지역코드 범위 밖', () => {
+    // 분리자 없는 12자리는 RRN/계좌 등과 구분 불가 → 매칭 X
+    expect(
+      detectKoreanPII('번호 112512345678').find(
+        (s) => s.category === 'driver_license',
+      ),
+    ).toBeUndefined();
+    // 지역코드 30~ 등 범위 밖
+    expect(
+      detectKoreanPII('30-25-123456-78').find(
+        (s) => s.category === 'driver_license',
+      ),
+    ).toBeUndefined();
   });
 
-  it('국제 전화 (+82, +1) 매칭', () => {
-    const text = '한국: +82-10-1234-5678, 미국: +1 415 555 1234';
-    const spans = detectKoreanPII(text).filter(
-      (s) => s.category === 'phone_international',
-    );
-    expect(spans.length).toBeGreaterThanOrEqual(1);
-    expect(spans[0]?.text.startsWith('+')).toBe(true);
+  it('법인등록번호 매칭 (13자리, 6-7 분리, 실 형식)', () => {
+    // 실제 법인등록번호 7자리 suffix는 일련번호로 0 또는 9로 시작 (등기 분류상)
+    const text = '법인등록번호 130111-0006246 입니다.';
+    const spans = detectKoreanPII(text);
+    const corp = spans.find((s) => s.category === 'corporate_registration');
+    expect(corp?.text).toBe('130111-0006246');
+  });
+
+  it('법인등록번호 미매칭 — RRN/외국인 형태(suffix 1-8 시작)와 충돌 시 양보', () => {
+    // RRN format으로 보이는 invalid 번호는 corporate로 fallback하지 않음 (FP 방지)
+    expect(
+      detectKoreanPII('900101-1234500').find(
+        (s) => s.category === 'corporate_registration',
+      ),
+    ).toBeUndefined();
+  });
+
+  it('법인등록번호 미매칭 — 전부 같은 숫자', () => {
+    expect(
+      detectKoreanPII('번호 000000-0000000').find(
+        (s) => s.category === 'corporate_registration',
+      ),
+    ).toBeUndefined();
+    expect(
+      detectKoreanPII('번호 111111-1111111').find(
+        (s) => s.category === 'corporate_registration',
+      ),
+    ).toBeUndefined();
   });
 
   it('한국 인명 + 직책 → high confidence', () => {

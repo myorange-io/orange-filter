@@ -170,6 +170,36 @@ const FIXTURES: Fixture[] = [
   // ── 사업자등록번호 (2) ───────────────────────────────────────────
   // S18 본격 작업에서 NPO 실 사업자번호 (체크섬 통과) 추가.
 
+  // ── 법인등록번호 (2) ─────────────────────────────────────────────
+  {
+    id: 'corp-natural',
+    text: '법인등록번호: 130111-0006246 (서울)',
+    expected: [
+      span('법인등록번호: 130111-0006246 (서울)', '130111-0006246', 'corporate_registration'),
+    ],
+  },
+  {
+    id: 'corp-vs-rrn-format-collision',
+    // RRN 형태(suffix 1-8 시작)인 invalid 번호는 어떤 카테고리도 잡으면 안 됨
+    text: '문서: 900101-1234500 (오타)',
+    expected: [],
+  },
+
+  // ── 운전면허번호 (2) ─────────────────────────────────────────────
+  {
+    id: 'dl-natural',
+    text: '운전면허 11-25-123456-78',
+    expected: [
+      span('운전면허 11-25-123456-78', '11-25-123456-78', 'driver_license'),
+    ],
+  },
+  {
+    id: 'dl-fp-region-out-of-range',
+    // 지역코드 30 → invalid
+    text: '번호 30-25-123456-78',
+    expected: [],
+  },
+
   // ── 이메일 (3) ───────────────────────────────────────────────────
   {
     id: 'email-natural',
@@ -306,6 +336,8 @@ const SEED_GATES: Partial<Record<PIICategory, { precision: number; recall: numbe
   card: { precision: 0.9, recall: 0.9 },
   email: { precision: 0.95, recall: 0.95 },
   credential: { precision: 0.9, recall: 0.9 },
+  corporate_registration: { precision: 0.95, recall: 0.95 },
+  driver_license: { precision: 0.95, recall: 0.95 },
 };
 
 describe('P/R 게이트 (seed 코퍼스)', () => {

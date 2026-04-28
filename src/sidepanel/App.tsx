@@ -83,7 +83,7 @@ export function App() {
           <div className="flex-1">
             <h1 className="text-xl font-bold">오렌지 필터</h1>
             <p className="text-sm text-muted-foreground">
-              개인정보를 이 PC 안에서 자동으로 가립니다.
+              개인정보를 이 PC 안에서 자동으로 가립니다. 외부 서버에 전송하지 않습니다.
             </p>
           </div>
         </header>

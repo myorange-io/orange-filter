@@ -48,9 +48,12 @@ function maskShape(text: string, category: PIICategory): string {
         return 'X'.repeat(group.length);
       });
     }
-    case 'phone_international':
-      // 국가코드 + 마지막 4자리 보존, 나머지 마스킹
-      return maskDigitsKeepingLast(text, 4);
+    case 'driver_license': {
+      // AA-BB-CCCCCC-DD → AA-BB-XXXXXX-XX (지역·발급연도만 보존)
+      const m = /^(\d{2})-(\d{2})-(\d{6})-(\d{2})$/.exec(text);
+      if (m) return `${m[1]}-${m[2]}-XXXXXX-XX`;
+      return text.replace(/\d/g, 'X');
+    }
     case 'card': {
       // 4-4-4-4: 앞 4 + 뒤 4 보존
       const m = /^(\d{4})[-\s]?(\d{4})[-\s]?(\d{4})[-\s]?(\d{4})$/.exec(text);
@@ -83,14 +86,15 @@ function maskShape(text: string, category: PIICategory): string {
       if (m) return `${m[1]}-${m[2]}-XXXXX`;
       return text.replace(/\d/g, 'X');
     }
+    case 'corporate_registration': {
+      // 6-7자리: 앞 6자리(분류)만 보존, 일련번호 7자리 마스킹.
+      const m = /^(\d{6})-(\d{7})$/.exec(text);
+      if (m) return `${m[1]}-XXXXXXX`;
+      return text.replace(/\d/g, 'X');
+    }
     case 'passport':
       // 첫 글자 보존 + 나머지 X
       return text[0] + 'X'.repeat(Math.max(0, text.length - 1));
-    case 'ssn_us': {
-      const m = /^(\d{3})-(\d{2})-(\d{4})$/.exec(text);
-      if (m) return `XXX-XX-${m[3]}`;
-      return text.replace(/\d/g, 'X');
-    }
     case 'person_name':
     case 'organization':
     case 'address':
@@ -110,15 +114,15 @@ function maskShape(text: string, category: PIICategory): string {
 const TAG_BY_CATEGORY: Record<PIICategory, string> = {
   rrn: '[RRN]',
   foreign_registration: '[FRN]',
+  driver_license: '[DL]',
   passport: '[PASSPORT]',
-  ssn_us: '[SSN]',
   credential: '[CREDENTIAL]',
   card: '[CARD]',
   business_number: '[BIZ_NO]',
+  corporate_registration: '[CORP_NO]',
   account: '[ACCOUNT]',
   mobile: '[PHONE]',
   landline: '[PHONE]',
-  phone_international: '[PHONE]',
   email: '[EMAIL]',
   person_name: '[NAME]',
   address: '[ADDRESS]',
@@ -134,15 +138,15 @@ const TAG_BY_CATEGORY: Record<PIICategory, string> = {
 const FAKE_BY_CATEGORY: Record<PIICategory, string> = {
   rrn: '900101-1234567',
   foreign_registration: '900101-5234567',
+  driver_license: '11-00-000000-00',
   passport: 'M00000000',
-  ssn_us: '123-45-6789',
   card: '4111-1111-1111-1111',
   account: '123-45-678901',
   mobile: '010-0000-0000',
   landline: '02-000-0000',
-  phone_international: '+00-00-0000-0000',
   email: 'redacted@example.com',
   business_number: '000-00-00000',
+  corporate_registration: '000000-0000000',
   person_name: '홍길동',
   address: '서울특별시 ○○구 ○○동',
   organization: '○○단체',
