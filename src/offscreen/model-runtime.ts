@@ -213,19 +213,51 @@ export async function listCachedModels(): Promise<string[]> {
 }
 
 // 모델 NER 라벨 → PIICategory 매핑.
-// Xenova/bert-base-NER 라벨: PER, ORG, LOC, MISC.
-// 추후 KoELECTRA-small-v3-modu-ner의 라벨 셋(PER/LOC/ORG/POH/DATE/TIME...)에 맞춰 확장.
-function mapLabel(label: string): PIICategory | null {
+// 지원 모델별 라벨 셋:
+//   - Xenova/bert-base-NER (Tier 1 default): PER, ORG, LOC, MISC
+//   - YATAV-ENT/aegis-personal-pii-ner (Tier 2 precision): GIVENNAME, SURNAME,
+//     EMAIL, TELEPHONENUM, IDCARD, CREDITCARDNUMBER, STREET, CITY, ZIPCODE,
+//     BUILDINGNUM, IP_ADDRESS, PASSWORD, ACCOUNTNUM, DRIVERLICENSENUM, TIME,
+//     COMPANY, USERNAME, DATEOFBIRTH (BIO prefix 자동 제거).
+export function mapLabel(label: string): PIICategory | null {
   const tag = label.replace(/^[BIES]-/, ''); // BIO/BIOES prefix 제거
   switch (tag) {
+    // 공통 (bert-base-NER + AEGIS 포함 일반 NER)
     case 'PER':
+    case 'GIVENNAME':
+    case 'SURNAME':
       return 'person_name';
     case 'ORG':
+    case 'COMPANY':
       return 'organization';
     case 'LOC':
+    case 'STREET':
+    case 'CITY':
+    case 'ZIPCODE':
+    case 'BUILDINGNUM':
       return 'address';
     case 'DATE':
+    case 'DATEOFBIRTH':
+    case 'TIME':
       return 'date';
+
+    // AEGIS PII (한국어 직접 라벨)
+    case 'EMAIL':
+      return 'email';
+    case 'TELEPHONENUM':
+      return 'mobile'; // 휴대폰/유선 구분은 정규식이 우선 처리, 모델은 일반 phone로
+    case 'IDCARD':
+      return 'rrn'; // 주민등록번호 직접 라벨
+    case 'CREDITCARDNUMBER':
+      return 'card';
+    case 'ACCOUNTNUM':
+      return 'account';
+    case 'DRIVERLICENSENUM':
+      return 'driver_license';
+    case 'PASSWORD':
+      return 'credential';
+
+    // 미매핑 (현재 카테고리 없음): IP_ADDRESS, USERNAME → null
     default:
       return null;
   }

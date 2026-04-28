@@ -1,13 +1,12 @@
 // 모델 레지스트리 — Tier 1 default + Tier 2 옵션 (multilingual / precision_high).
 // Tier 2 모델은 첫 사용 시 다운로드 필요. ModelManager UI에서 사용자가 명시 동의.
 //
-// 모델 swap 정책 (S15 시점):
+// 모델 swap 정책:
 //   - Tier 1 (default): 항상 활성. 첫 paste 전 워밍업 완료. ~30MB
 //   - Tier 2 (multilingual): 한국어 비율 < 0.4인 paste에서 사용. 사용자 ON.
 //   - Tier 2 (precision_high): 모드가 'precision_high'일 때 사용. 사용자 ON.
 //
-// 미해결 (블로커): KoELECTRA-small-v3-modu-ner는 HF에 ONNX 미배포.
-// 사용자가 optimum-cli로 변환 + CDN 호스팅 후 modelId 한 줄 교체.
+// 라우팅: pickModel()이 userMode + 한글 비율 + 다운로드 가용성으로 결정.
 
 import type { ModelTier } from '@/background/pii/router';
 
@@ -62,15 +61,18 @@ export const TIER2_OPTIONS: ReadonlyArray<ModelDefinition> = [
   },
   {
     tier: 'tier2-precision',
-    // KoELECTRA-small-v3-modu-ner — HF에 ONNX 미배포. optimum-cli 변환 후 CDN 호스팅 필요.
-    // 변환 명령: `optimum-cli export onnx --model Leo97/KoELECTRA-small-v3-modu-ner --task token-classification ./out`
-    // 그 후 ORT int8 양자화 + 사용자/팀 CDN URL로 modelId 교체.
-    modelId: 'Leo97/KoELECTRA-small-v3-modu-ner',
-    labelKo: '한국어 정밀 NER (KoELECTRA)',
-    descriptionKo: '한국어 인명·조직명을 더 정밀하게 잡습니다. NPO 결산공시 양식 등 한국어 컨텐츠에 권장합니다.',
+    // AEGIS Personal PII NER (mBERT 기반, INT8 양자화 ONNX 완료, Transformers.js 호환).
+    // 한국어 F1 0.9632, 영문 F1 0.9119, FPR 0.33%. 학습: 한국 PII 합성 64k +
+    // BoB14TeamSentinel 20k + Hard Negative 19k + ai4privacy 47k = 170k.
+    // 라벨 18종 중 IDCARD/DRIVERLICENSENUM/ACCOUNTNUM/CREDITCARDNUMBER 등이 우리
+    // 카테고리와 직접 매핑 (mapLabel 참조).
+    modelId: 'YATAV-ENT/aegis-personal-pii-ner',
+    labelKo: '한국어 정밀 NER (AEGIS PII)',
+    descriptionKo:
+      '한국어·영어 PII를 직접 학습한 mBERT 기반 모델. 주민번호·운전면허·계좌·카드 등 한국 PII 라벨을 직접 인식합니다. NPO 양식 등 한국어 컨텐츠에 권장.',
     approxDownloadMB: 50,
-    license: 'CC-BY-4.0',
-    shippable: false, // ONNX 변환 작업 완료 후 true로 전환
+    license: 'Apache-2.0',
+    shippable: true, // ONNX INT8 양자화본 (./onnx/model_quantized.onnx) 즉시 사용
   },
 ];
 
