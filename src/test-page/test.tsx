@@ -9,9 +9,11 @@
 import { showPasteModal } from '@/content/show-paste-modal';
 import { chatgptAdapter } from '@/content/site-adapters';
 
+// 데모 RRN은 valid checksum이어야 모달이 RRN을 마스킹하는 모습을 보여줄 수 있음
+// (validateRRNChecksum이 invalid면 detectRRN이 emit 안 함 — 데모 일관성 위해 valid 번호 사용).
 const SAMPLE_TEXT = `안녕하세요. 김민수 부장입니다.
 연락처는 010-1234-5678이고 사무실은 02-555-1234 입니다.
-주민등록번호 901011-1234567 / 이메일 minsu.kim@example.org / API 토큰 sk-live-abcdefghijklmnopqrstuv`;
+주민등록번호 901011-1234563 / 이메일 minsu.kim@example.org / API 토큰 sk-live-abcdefghijklmnopqrstuv`;
 
 const sampleEl = document.getElementById('sample');
 if (sampleEl) sampleEl.textContent = SAMPLE_TEXT;

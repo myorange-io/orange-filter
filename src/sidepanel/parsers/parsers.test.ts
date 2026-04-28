@@ -10,7 +10,26 @@ import { parseXlsx, exportXlsx } from './xlsx';
 import { parseDocx, exportDocx } from './docx';
 import { parseHwp } from './hwp';
 
-const SAMPLE_DIR = join(process.cwd(), 'sample');
+/**
+ * sample/ 디렉터리 위치 결정. 워크트리(`.claude/worktrees/<id>`)에서 실행 시 cwd가
+ * 워크트리 루트라 메인 repo의 sample/을 못 본다. cwd부터 상위로 4단계까지 탐색.
+ * 환경변수 `NPO_SAMPLE_DIR`로 명시 override 가능.
+ */
+function resolveSampleDir(): string | null {
+  const env = process.env.NPO_SAMPLE_DIR;
+  if (env && existsSync(env)) return env;
+  const candidates = [
+    join(process.cwd(), 'sample'),
+    join(process.cwd(), '..', 'sample'),
+    join(process.cwd(), '..', '..', 'sample'),
+    join(process.cwd(), '..', '..', '..', 'sample'),
+    join(process.cwd(), '..', '..', '..', '..', 'sample'),
+  ];
+  for (const c of candidates) if (existsSync(c)) return c;
+  return null;
+}
+
+const SAMPLE_DIR = resolveSampleDir();
 
 function fileFromDisk(path: string): File {
   const buf = readFileSync(path);
@@ -19,7 +38,7 @@ function fileFromDisk(path: string): File {
 }
 
 function findSample(pattern: RegExp): string | null {
-  if (!existsSync(SAMPLE_DIR)) return null;
+  if (!SAMPLE_DIR || !existsSync(SAMPLE_DIR)) return null;
   for (const name of readdirSync(SAMPLE_DIR)) {
     if (pattern.test(name)) return join(SAMPLE_DIR, name);
   }
@@ -122,6 +141,22 @@ describe('HWP 5.x parser (sample 픽스처)', () => {
       combined.includes('서식') ||
       combined.includes('명세');
     expect(hasKoreanForm).toBe(true);
+  });
+
+  test.skipIf(!samplePath)('빈 양식엔 PII 0건이어야 함 (FP 없음)', async () => {
+    // NPO 표준 양식의 빈 hwp는 안내 텍스트만 있고 실 PII는 없어야 한다.
+    // detectKoreanPII가 양식 라벨/주석을 PII로 잘못 잡으면 회귀.
+    const { detectKoreanPII } = await import('@/background/pii/regex');
+    const file = fileFromDisk(samplePath!);
+    const parsed = await parseHwp(file);
+    const spans = detectKoreanPII(parsed.combinedText);
+    // 빈 양식이라 RRN/외국인/카드/계좌/credential 등 검증 필요한 카테고리는 0건.
+    const sensitive = spans.filter((s) =>
+      ['rrn', 'foreign_registration', 'card', 'account', 'credential', 'driver_license', 'corporate_registration', 'business_number'].includes(
+        s.category,
+      ),
+    );
+    expect(sensitive).toHaveLength(0);
   });
 });
 
