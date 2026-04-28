@@ -97,7 +97,12 @@ export function App() {
           <ModelManager />
         </section>
 
-        <section className="mb-6 space-y-3" aria-label="파일 업로드">
+        <section className="mb-6" aria-label="파일 업로드">
+          <h2 className="mb-1 text-sm font-bold">파일 업로드</h2>
+          <p className="mb-3 text-xs text-muted-foreground">
+            파일에 든 개인정보를 자동으로 가려 다운로드해요. 모든 처리는 이 PC 안에서 이뤄집니다.
+          </p>
+          <div className="space-y-3">
           <FileDropZone
             onAdd={(accepted) => {
               const { rejected } = queue.add(accepted);
@@ -135,6 +140,7 @@ export function App() {
               큐 비우기
             </button>
           )}
+          </div>
         </section>
 
         <Tabs
