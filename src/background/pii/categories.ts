@@ -7,7 +7,11 @@ export interface CategoryDefinition {
   defaultEnabled: boolean;
   defaultMaskMode: MaskMode;
   sources: ReadonlyArray<'regex' | 'model' | 'korean_ner'>;
+  /** UI에서 노출할 마스킹 모드. 미지정 시 DEFAULT_MODES (shape, tag, fake, remove). */
+  allowedModes?: ReadonlyArray<MaskMode>;
 }
+
+export const DEFAULT_MODES: ReadonlyArray<MaskMode> = ['shape', 'tag', 'fake', 'remove'];
 
 export const CATEGORIES: Record<PIICategory, CategoryDefinition> = {
   rrn: {
@@ -89,6 +93,7 @@ export const CATEGORIES: Record<PIICategory, CategoryDefinition> = {
     defaultEnabled: true,
     defaultMaskMode: 'fake',
     sources: ['model', 'korean_ner', 'regex'],
+    allowedModes: ['shape', 'partial', 'tag', 'fake', 'remove'],
   },
   email: {
     id: 'email',

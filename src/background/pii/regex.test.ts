@@ -362,4 +362,126 @@ describe('detectKoreanPII', () => {
     expect(categories.has('email')).toBe(true);
     expect(categories.has('card')).toBe(true);
   });
+
+  // ===========================================================================
+  // P1-1 + P1-2 + P2-1 + P2-2 + P3 회귀
+  // ===========================================================================
+
+  it('P1-1: surname "선" + 복성 (남궁/황보/제갈) 추가 매칭', () => {
+    expect(detectKoreanPII('선아무 박사').find((s) => s.category === 'person_name')).toBeDefined();
+    expect(detectKoreanPII('남궁아무 교수').find((s) => s.category === 'person_name')).toBeDefined();
+    expect(detectKoreanPII('황보아무 대표').find((s) => s.category === 'person_name')).toBeDefined();
+  });
+
+  it('P1-2: 조직명 ○○대학교/법인/재단/연구소 매칭', () => {
+    expect(detectKoreanPII('서울대학교 총장').find((s) => s.category === 'organization')?.text)
+      .toBe('서울대학교');
+    expect(detectKoreanPII('한국공익법인협회').find((s) => s.category === 'organization')?.text)
+      .toBeDefined();
+    expect(detectKoreanPII('아름다운재단 후원').find((s) => s.category === 'organization')?.text)
+      .toBe('아름다운재단');
+  });
+
+  it('P1-2: 영문 약어 KAIST/POSTECH/UNIST 매칭', () => {
+    expect(detectKoreanPII('KAIST 교수님').find((s) => s.category === 'organization')?.text)
+      .toBe('KAIST');
+    expect(detectKoreanPII('POSTECH 연구원').find((s) => s.category === 'organization')?.text)
+      .toBe('POSTECH');
+  });
+
+  it('P1-2: 일반명사 (공익법인/비영리법인 단독) 차단', () => {
+    expect(
+      detectKoreanPII('공익법인 결산서류').find((s) => s.category === 'organization' && s.text === '공익법인'),
+    ).toBeUndefined();
+    expect(
+      detectKoreanPII('비영리법인은').find((s) => s.category === 'organization' && s.text === '비영리법인'),
+    ).toBeUndefined();
+  });
+
+  it('P2-1: 은행 prefix + 자릿수 다양 형식 (정규식 화이트리스트 미포함)', () => {
+    expect(detectKoreanPII('하나 100-200300-40500').find((s) => s.category === 'account')).toBeDefined();
+    expect(detectKoreanPII('신한 100-200-30040').find((s) => s.category === 'account')).toBeDefined();
+    expect(detectKoreanPII('국민 100200-30-040506').find((s) => s.category === 'account')).toBeDefined();
+    expect(detectKoreanPII('우리 100-200304-05-060').find((s) => s.category === 'account')).toBeDefined();
+  });
+
+  it('P2-2: 로마자 한국 이름 (Lee/Kim + CamelCase, CamelCase + 성씨)', () => {
+    expect(detectKoreanPII('Contact: KimAB').find((s) => s.category === 'person_name')).toBeDefined();
+    expect(detectKoreanPII('CV_KimDoeFoo.pdf').find((s) => s.category === 'person_name')).toBeDefined();
+    expect(detectKoreanPII('CV_DoeFooKim.pdf').find((s) => s.category === 'person_name')).toBeDefined();
+  });
+
+  it('P3: 파일명 internal token (이름+이력서/사본/면허)', () => {
+    // 이름 부분만 매치 (suffix는 lookahead).
+    const t1 = '14. 임꺽정이력서_202402.doc';
+    const span1 = detectKoreanPII(t1).find((s) => s.category === 'person_name');
+    expect(span1?.text).toBe('임꺽정');
+    const t2 = '홍길동사본.pdf';
+    const span2 = detectKoreanPII(t2).find((s) => s.category === 'person_name');
+    expect(span2?.text).toBe('홍길동');
+  });
+
+  it('동일 셀에 같은 이름 여러 번 등장 — 모두 매칭 (P1-3 회귀)', () => {
+    const text = '7.성춘향-주민등록증사본_성춘향.pdf';
+    const names = detectKoreanPII(text).filter((s) => s.category === 'person_name' && s.text === '성춘향');
+    expect(names.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('detectContextualName (2자 이름 컨텍스트 매치)', () => {
+  it('파일명 안 _박영. / _오성_ / _홍진. 매치', async () => {
+    const { detectContextualName } = await import('./regex');
+    expect(detectContextualName('4.통장사본_박영.pdf').map((s) => s.text)).toEqual(['박영']);
+    expect(detectContextualName('12.오성_신분증_1.jpg').map((s) => s.text)).toEqual(['오성']);
+    expect(detectContextualName('19.신분증사본_홍진.png').map((s) => s.text)).toEqual(['홍진']);
+  });
+
+  it('boundary 양쪽이 한글이면 미매치 (일반 단어 차단)', async () => {
+    const { detectContextualName } = await import('./regex');
+    // "이사회의" — 양쪽 한글로 둘러싸여 매치 X
+    expect(detectContextualName('이사회의 결정사항').map((s) => s.text)).toEqual([]);
+  });
+
+  it('stoplist 일반 명사 차단 (이상/주요/도움/소속/연구)', async () => {
+    const { detectContextualName } = await import('./regex');
+    expect(detectContextualName('보고 이상 없음').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('항목 주요 사항').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('필요 도움 요청').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('국내 연구 동향').map((s) => s.text)).toEqual([]);
+  });
+
+  it('이름 끝글자가 명백한 조사면 차단 (이의/김의/박이)', async () => {
+    const { detectContextualName } = await import('./regex');
+    expect(detectContextualName('박의 의견').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('이를 보고').map((s) => s.text)).toEqual([]);
+  });
+
+  it('4자 이름 컨텍스트 매치 (김아무개_약력 / 남궁아무_이력서)', async () => {
+    const { detectContextualName } = await import('./regex');
+    expect(detectContextualName('6.김아무개_약력_202603.hwp').map((s) => s.text)).toContain(
+      '김아무개',
+    );
+    expect(detectContextualName('남궁아무_이력서.pdf').map((s) => s.text)).toContain(
+      '남궁아무',
+    );
+  });
+
+  it('4자 일반 한자어 차단 (한국문화/연구개발/주요내용)', async () => {
+    const { detectContextualName } = await import('./regex');
+    expect(detectContextualName('_한국문화_').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('_연구개발_').map((s) => s.text)).toEqual([]);
+    expect(detectContextualName('_주요내용_').map((s) => s.text)).toEqual([]);
+  });
+});
+
+describe('NAME_WITH_TITLE 4자 이름 (title-context)', () => {
+  it('단성+3자 + 직책 (김아무개 박사 / 정아무개 교수)', () => {
+    expect(detectKoreanPII('김아무개 박사').find((s) => s.category === 'person_name')?.text)
+      .toBe('김아무개');
+  });
+
+  it('복성+3자 + 직책 (남궁아무개 교수)', () => {
+    expect(detectKoreanPII('남궁아무개 교수').find((s) => s.category === 'person_name')?.text)
+      .toBe('남궁아무개');
+  });
 });

@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { buildNodeMeta, parseTables } from './table-walker';
 import type { ExportInput, ParseResult, Segment } from './types';
 
 // DOCX는 ZIP + word/document.xml. <w:t> 텍스트 노드를 추출/치환하는 방식으로
@@ -41,9 +42,20 @@ export async function parseDocx(file: File): Promise<ParseResult> {
   const xml = await zip.file(DOCUMENT_PATH)?.async('string');
   if (!xml) throw new Error('DOCX: word/document.xml 없음');
   const nodes = textNodes(xml);
-  const segments: Segment[] = nodes
-    .map((n, i) => ({ id: `t${i}`, text: decodeXmlText(n.text) }))
-    .filter((s) => s.text.length > 0);
+  // 표 구조 식별 — 표 안 텍스트 노드들에 isHeader/forcedCategory/nameHintOnly 부여.
+  const tables = parseTables(xml, 'w', 'w');
+  const nodeMeta = buildNodeMeta(tables);
+  const segments: Segment[] = [];
+  nodes.forEach((n, i) => {
+    const text = decodeXmlText(n.text).normalize('NFC');
+    if (text.length === 0) return;
+    const meta = nodeMeta.get(i);
+    const seg: Segment = { id: `t${i}`, text };
+    if (meta?.isHeader) seg.isHeader = true;
+    else if (meta?.forcedCategory) seg.forcedCategory = meta.forcedCategory;
+    else if (meta?.nameHintOnly) seg.nameHintOnly = true;
+    segments.push(seg);
+  });
   return {
     segments,
     combinedText: segments.map((s) => s.text).join(' '),

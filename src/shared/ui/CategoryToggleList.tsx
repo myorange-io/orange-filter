@@ -3,12 +3,13 @@
 
 import { Switch } from './switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select';
-import { CATEGORIES, CATEGORY_ORDER } from '@/background/pii/categories';
+import { CATEGORIES, CATEGORY_ORDER, DEFAULT_MODES } from '@/background/pii/categories';
 import { getMaskExample } from '@/background/pii/mask';
 import type { MaskMode, PIICategory } from '@/shared/types';
 
 const MODE_LABELS: Record<MaskMode, string> = {
   shape: '형태 보존',
+  partial: '부분 가림',
   tag: '태그 치환',
   fake: '가짜 데이터',
   remove: '완전 제거',
@@ -73,7 +74,7 @@ export function CategoryToggleList({
                     <SelectValue>{MODE_LABELS[mode]}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {(Object.keys(MODE_LABELS) as MaskMode[]).map((m) => (
+                    {(def.allowedModes ?? DEFAULT_MODES).map((m) => (
                       <SelectItem key={m} value={m} className="text-xs">
                         <span className="flex items-baseline gap-2">
                           <span>{MODE_LABELS[m]}</span>

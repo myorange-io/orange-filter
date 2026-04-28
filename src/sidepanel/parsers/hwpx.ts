@@ -3,6 +3,7 @@
 // 네임스페이스 prefix는 hp: 가 일반적이지만 다른 prefix 사용 가능 → `[a-z0-9]+:t` 패턴.
 
 import JSZip from 'jszip';
+import { buildNodeMeta, parseTables } from './table-walker';
 import type { ExportInput, ParseResult, Segment } from './types';
 
 const SECTION_RE = /^Contents\/section\d+\.xml$/;
@@ -36,16 +37,25 @@ export async function parseHwpx(file: File): Promise<ParseResult> {
   for (const path of Object.keys(zip.files)) {
     if (!SECTION_RE.test(path)) continue;
     const xml = await zip.files[path]!.async('string');
+    // 표 구조 식별. HWPX namespace는 보통 'hp'.
+    const tables = parseTables(xml, 'hp', 'hp');
+    const nodeMeta = buildNodeMeta(tables);
     let m: RegExpExecArray | null;
-    let i = 0;
+    // i는 빈 노드 포함 인덱스 (export와 일치, table-walker와도 일치).
+    let i = -1;
     TEXT_NODE_RE.lastIndex = 0;
     while ((m = TEXT_NODE_RE.exec(xml)) !== null) {
+      i++;
       const inner = m[2] ?? '';
       if (inner.length === 0) continue;
-      const decoded = decodeXml(inner);
-      segments.push({ id: segId(path, i), text: decoded });
+      const decoded = decodeXml(inner).normalize('NFC');
+      const meta = nodeMeta.get(i);
+      const seg: Segment = { id: segId(path, i), text: decoded };
+      if (meta?.isHeader) seg.isHeader = true;
+      else if (meta?.forcedCategory) seg.forcedCategory = meta.forcedCategory;
+      else if (meta?.nameHintOnly) seg.nameHintOnly = true;
+      segments.push(seg);
       lines.push(decoded);
-      i++;
     }
   }
   return { segments, combinedText: lines.join('\n') };
@@ -57,12 +67,14 @@ export async function exportHwpx(originalFile: File, masked: ExportInput): Promi
     if (!SECTION_RE.test(path)) continue;
     const file = zip.files[path]!;
     const xml = await file.async('string');
-    let i = 0;
+    // i는 빈 노드 포함 인덱스 — parseHwpx와 동일 인덱싱.
+    let i = -1;
     let cursor = 0;
     let out = '';
     TEXT_NODE_RE.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = TEXT_NODE_RE.exec(xml)) !== null) {
+      i++;
       const fullMatch = m[0];
       const inner = m[2] ?? '';
       if (inner.length === 0) continue;
@@ -80,7 +92,6 @@ export async function exportHwpx(originalFile: File, masked: ExportInput): Promi
         out += fullMatch;
       }
       cursor = matchEnd;
-      i++;
     }
     out += xml.slice(cursor);
     zip.file(path, out);

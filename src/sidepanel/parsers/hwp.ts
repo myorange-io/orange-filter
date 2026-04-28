@@ -5,6 +5,8 @@
 // → exportHwp는 TXT fallback. v2에서 rhwp WASM 통합.
 
 import { parse } from 'hwp.js';
+import { categoryForHeader, isNameHintHeader } from '@/background/pii/header-hints';
+import type { PIICategory } from '@/shared/types';
 import type { ExportInput, ParseResult, Segment } from './types';
 
 interface HWPCharLike {
@@ -43,15 +45,34 @@ function extractParaText(p: HWPParagraphLike): string {
   return out;
 }
 
+interface ColumnHints {
+  categoryByCol: Map<number, PIICategory>;
+  nameHintCols: Set<number>;
+}
+
 function walk(
   para: HWPParagraphLike,
   prefix: string,
   segments: Segment[],
   lines: string[],
+  inheritedHint?: { columnHints: ColumnHints; cellIdx: number; isHeaderRow: boolean },
 ): void {
-  const text = extractParaText(para).trim();
+  // hwp.js가 일부 텍스트를 NFD(자모 분해)로 추출 → 정규식 [가-힣] 미스. NFC 정규화.
+  const text = extractParaText(para).trim().normalize('NFC');
   if (text.length > 0) {
-    segments.push({ id: prefix, text });
+    const seg: Segment = { id: prefix, text };
+    if (inheritedHint) {
+      if (inheritedHint.isHeaderRow) {
+        seg.isHeader = true;
+      } else {
+        const cat = inheritedHint.columnHints.categoryByCol.get(inheritedHint.cellIdx);
+        if (cat) seg.forcedCategory = cat;
+        else if (inheritedHint.columnHints.nameHintCols.has(inheritedHint.cellIdx)) {
+          seg.nameHintOnly = true;
+        }
+      }
+    }
+    segments.push(seg);
     lines.push(text);
   }
   if (!para.controls) return;
@@ -60,10 +81,31 @@ function walk(
     if (!Array.isArray(content)) return;
     // TableControl: content는 rows[]; 각 row는 cells[]; 각 cell.items가 paragraphs.
     if (content.length > 0 && Array.isArray(content[0])) {
-      (content as HWPCellLike[][]).forEach((row, ri) => {
+      const rows = content as HWPCellLike[][];
+      // 첫 row를 헤더로 검사 — 사전 매칭이 있으면 컬럼별 hint 추출.
+      const columnHints: ColumnHints = { categoryByCol: new Map(), nameHintCols: new Set() };
+      if (rows.length > 0) {
+        rows[0]!.forEach((cell, cellIdx) => {
+          // 셀의 모든 paragraph 텍스트를 결합해 헤더 매칭.
+          const cellText = (cell.items ?? [])
+            .map((it) => extractParaText(it))
+            .join('')
+            .trim()
+            .normalize('NFC');
+          const cat = categoryForHeader(cellText);
+          if (cat) columnHints.categoryByCol.set(cellIdx, cat);
+          else if (isNameHintHeader(cellText)) columnHints.nameHintCols.add(cellIdx);
+        });
+      }
+      const hasHints =
+        columnHints.categoryByCol.size > 0 || columnHints.nameHintCols.size > 0;
+      rows.forEach((row, ri) => {
         row.forEach((cell, cellIdx) => {
           (cell.items ?? []).forEach((item, ii) => {
-            walk(item, `${prefix}-c${ci}r${ri}c${cellIdx}i${ii}`, segments, lines);
+            const childHint = hasHints
+              ? { columnHints, cellIdx, isHeaderRow: ri === 0 }
+              : undefined;
+            walk(item, `${prefix}-c${ci}r${ri}c${cellIdx}i${ii}`, segments, lines, childHint);
           });
         });
       });

@@ -12,10 +12,7 @@ import {
   type SizeRejectReason,
 } from './file-queue';
 import { exportFile, parseFile } from './parsers';
-import type { Segment } from './parsers/types';
-import { maskText } from '@/background/pii/mask';
-import { detectKoreanPII } from '@/background/pii/regex';
-import type { PIISpan } from '@/shared/types';
+import { maskSegments } from './mask-segments';
 
 export interface UseFileQueueResult {
   items: QueueItem[];
@@ -28,25 +25,6 @@ interface ProcessOutcome {
   detectedCount: number;
   outputBlob: Blob;
   outputName: string;
-}
-
-function maskSegments(segments: Segment[]): {
-  maskedMap: Map<string, string>;
-  totalSpans: number;
-} {
-  const out = new Map<string, string>();
-  let total = 0;
-  for (const seg of segments) {
-    const spans: PIISpan[] = detectKoreanPII(seg.text);
-    if (spans.length === 0) {
-      out.set(seg.id, seg.text);
-      continue;
-    }
-    const result = maskText(seg.text, spans);
-    out.set(seg.id, result.text);
-    total += result.applied.length;
-  }
-  return { maskedMap: out, totalSpans: total };
 }
 
 function suffixedName(original: string, suffix = '_masked', overrideExt?: string): string {

@@ -92,6 +92,33 @@ describe('applyMask shape mode', () => {
   });
 });
 
+describe('applyMask partial mode (사람 이름 부분 가림)', () => {
+  it('3자 이름: 첫·끝 글자 노출, 가운데 O', () => {
+    expect(applyMask(span('조성도', 'person_name'), 'partial')).toBe('조O도');
+  });
+
+  it('2자 이름: 성만 노출, 끝 O', () => {
+    expect(applyMask(span('김민', 'person_name'), 'partial')).toBe('김O');
+  });
+
+  it('4자 이름 (복성): 첫·끝만 노출, 가운데 모두 O', () => {
+    expect(applyMask(span('남궁아무', 'person_name'), 'partial')).toBe('남OO수');
+  });
+
+  it('1자: 그대로', () => {
+    expect(applyMask(span('박', 'person_name'), 'partial')).toBe('박');
+  });
+
+  it('person_name 외 카테고리는 shape으로 fallback', () => {
+    expect(applyMask(span('010-1234-5678', 'mobile'), 'partial')).toBe(
+      '010-XXXX-XXXX',
+    );
+    expect(applyMask(span('950510-1234567', 'rrn'), 'partial')).toBe(
+      '950510-XXXXXXX',
+    );
+  });
+});
+
 describe('applyMask tag mode (한국어)', () => {
   it('RRN tag', () => {
     expect(applyMask(span('950510-1234567', 'rrn'), 'tag')).toBe('[주민등록번호]');
