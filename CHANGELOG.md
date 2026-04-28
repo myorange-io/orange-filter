@@ -5,7 +5,10 @@
 
 ---
 
-## [Unreleased] — v1.0 출시 후보
+## [1.0.0] — 2026-04-28
+
+Chrome Web Store 첫 출시. 디자인 review 통과 + 라이트/다크 토글 + WASM CSP
+정정 + 13개 파일 형식 + 17개 PII 카테고리 + AEGIS PII 모델 + Tesseract OCR.
 
 ### Added (출시 ship-blocker 완료)
 
