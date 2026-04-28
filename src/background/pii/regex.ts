@@ -122,6 +122,105 @@ const DRIVER_LICENSE_PATTERN = /\b(?:1[1-9]|2[0-8])-\d{2}-\d{6}-\d{2}\b/g;
 // 사업자등록번호(10자리)와 형태가 다름. 첫 6자리는 본·지점 분류·일련번호.
 const CORPORATE_REG_PATTERN = /\b\d{6}-\d{7}\b/g;
 
+// =============================================================================
+// P1-2: 조직명 (○○대, ○○법인, ○○재단 등)
+// =============================================================================
+// 한국어 + 영문 약어 (KAIST, POSTECH, UNIST, GIST, DGIST 등) 모두 포괄.
+// 본 패턴은 "반드시 조직"인 키워드 suffix 다음에서만 매치 — FP 최소화.
+const ORGANIZATION_SUFFIXES = [
+  '대학교','대학원','대학','법인','재단','학원','연구소','연구원',
+  '위원회','협의회','협회','기관','학회','조합','상사','은행','공사',
+  '센터','회사','병원','학교','복지관','진흥원','개발원','진흥회',
+];
+const ORGANIZATION_SUFFIX_PATTERN = ORGANIZATION_SUFFIXES.join('|');
+const ORGANIZATION_KOREAN = new RegExp(
+  `(?<![가-힣])[가-힣]{2,8}(?:${ORGANIZATION_SUFFIX_PATTERN})(?![가-힣])`,
+  'g',
+);
+// organization 일반명사 stoplist — 양식 안내문에서 자주 등장.
+const ORGANIZATION_STOPLIST: ReadonlySet<string> = new Set([
+  '공익법인','비영리법인','사단법인','재단법인','학교법인','종교법인',
+  '의료법인','특수법인','외국법인','영리법인',
+  '비영리재단','비영리단체','비영리법인',
+  '공시 표준서식', '결산공시',
+]);
+// 영문 약어 대학·연구소 (KAIST/POSTECH/UNIST 등)
+const ORGANIZATION_ACRONYM_KO_INSTITUTIONS = new Set([
+  'KAIST','POSTECH','UNIST','GIST','DGIST','KIST','ETRI','KISTI',
+  'SNU','KU','YU','HU','SKKU','CAU','EWHA','HUFS','DGU','KHU','PNU',
+  'KITRI','KISA','NIA','KOSEN',
+]);
+const ACRONYM_PATTERN = /\b[A-Z]{3,8}\b/g;
+
+// =============================================================================
+// P2-1: 은행 prefix 기반 계좌번호 (정규식 패턴 화이트리스트 미포함 형식 보강)
+// =============================================================================
+// 사용자 데이터 분석에서 발견된 누락 형식들:
+//  하나 100-200300-40500 (3-6-5)
+//  신한 100-200-30040 (3-3-5)
+//  국민 100200-30-040506 (6-2-6 → RRN과 형태 충돌, but 은행명 prefix가 disambiguate)
+//  우리 100-200304-05-060 (3-6-2-3)
+//  하나 296-18-09507-8 (3-2-5-1)
+const BANK_NAMES = [
+  '국민','신한','우리','하나','농협','기업','수협','새마을','우체국',
+  '경남','광주','대구','부산','전북','제주','씨티','SC제일','SC',
+  '토스뱅크','카카오뱅크','케이뱅크','산업','한국씨티','KEB하나','KB국민',
+];
+const BANK_NAME_PATTERN = BANK_NAMES.join('|');
+// 은행명 + 공백/탭 + (숫자/하이픈/공백) 조합. 숫자 시작·종료. 길이 8~25자.
+// 너무 broad하지 않게: 처음/끝은 숫자, 중간에 1+개의 하이픈 또는 공백 허용.
+const BANK_ACCOUNT_PATTERN = new RegExp(
+  `(?:${BANK_NAME_PATTERN})\\s*\\d[\\d\\s\\-]{6,23}\\d`,
+  'g',
+);
+
+// =============================================================================
+// P2-2: 로마자 한국 이름 (CamelCase 또는 한국 성씨 영문 표기 + 이름)
+// =============================================================================
+// 한국 성씨 영문 표기 (top 30 정도). MR/RR/일반 변형 포함.
+const ROMAN_KOREAN_SURNAMES = [
+  'Kim','Lee','Park','Choi','Choe','Jung','Jeong','Chung',
+  'Kang','Cho','Jo','Yoon','Yun','Jang','Chang',
+  'Lim','Rim','Han','Oh','Suh','Seo','Shin','Sin','Kwon','Gwon',
+  'Hwang','Ahn','An','Song','Ryu','Yoo','Yu',
+  'Jeon','Jun','Hong','Ko','Go','Moon','Mun','Yang',
+  'Son','Bae','Pae','Baek','Paik','Heo','Hur','Hu','Nam',
+  'Sim','Shim','Roh','Noh','No','Ha','Ku','Koo','Gu',
+  'Min','Jin','Chin','Ji','Yeon','Ham','Byun','Pyun',
+];
+const ROMAN_KOREAN_SURNAME_PATTERN = ROMAN_KOREAN_SURNAMES.join('|');
+// 한국 성씨 영문 + 1~2개의 추가 CamelCase 단어 (이름).
+//   "KimAB" "KimDoeFoo" "DoeFooKim" 같은 케이스.
+// 두 가지 형태:
+//   (a) [Surname][CamelCaseName]+   : KimAB, KimDoeFoo
+//   (b) [CamelCaseName]+[Surname]   : DoeFooKim
+// 파일명 안 (`_KimDoeFoo.pdf`)에서도 매치되도록 \b 대신 [A-Za-z0-9] 미포함 lookaround.
+const ROMAN_NAME_PATTERN = new RegExp(
+  // (a) Surname + (CamelCase 1~2자) 또는 (대문자 약어 2~4자). KimDoeFoo, KimAB 등.
+  `(?<![A-Za-z0-9])(?:${ROMAN_KOREAN_SURNAME_PATTERN})(?:[A-Z][a-z]+){1,2}(?![A-Za-z0-9])|` +
+    `(?<![A-Za-z0-9])(?:${ROMAN_KOREAN_SURNAME_PATTERN})[A-Z]{2,4}(?![A-Za-z0-9])|` +
+    // (b) (CamelCase 1~2자) + Surname. DoeFooKim 등.
+    `(?<![A-Za-z0-9])(?:[A-Z][a-z]+){1,2}(?:${ROMAN_KOREAN_SURNAME_PATTERN})(?![A-Za-z0-9])`,
+  'g',
+);
+const ROMAN_NAME_STOPLIST: ReadonlySet<string> = new Set([
+  // 일반 단어 (FP 가능성 — 미국식 약어 등)
+  'JavaScript','TypeScript','GitHub','LinkedIn','OpenAI','PowerPoint',
+  'NodeJS','MacOS','iOS','iPad','iPhone',
+]);
+
+// =============================================================================
+// P3: 파일명 internal token — 이름과 정형단어가 구분자 없이 붙은 경우
+// =============================================================================
+// "임꺽정이력서_202402.doc"의 "임꺽정" 같이 [이름][정형단어]가 붙은 패턴.
+// 정형단어 prefix를 lookahead로 — match는 이름 부분만.
+const FILENAME_DOC_SUFFIXES = [
+  '이력서','사본','면허','면허증','증명서','확인서','영수증','등본','초본',
+  '진단서','신분증','통장','계좌','약력','경력서','이수증','수료증',
+];
+const FILENAME_DOC_SUFFIX_PATTERN = FILENAME_DOC_SUFFIXES.join('|');
+// FILENAME_NAME_TOKEN은 SURNAME_CLASS 정의 후 만들어진다 (아래).
+
 // 자격정보 prefix-based
 const CREDENTIAL_PATTERNS = [
   /\bsk-[A-Za-z0-9_-]{16,}\b/g, // OpenAI/Anthropic
@@ -132,34 +231,51 @@ const CREDENTIAL_PATTERNS = [
   /\b(?:postgres|postgresql|mysql|mongodb|redis|amqp)(?:\+[a-z]+)?:\/\/[^\s:@]+:[^\s@]+@[^\s/]+/gi,
 ];
 
-// 한국 성씨 (top 50, 인구 기준 상위)
+// 한국 성씨 (top 50 + sample에서 누락된 '선'). 더 큰 사전은 일반명사 충돌로
+// FP 폭증 — top 50 외에는 stoplist 보강이 어려워 보수적으로 유지.
 const KOREAN_SURNAMES = [
   '김','이','박','최','정','강','조','윤','장','임',
   '한','오','서','신','권','황','안','송','류','전',
   '홍','고','문','양','손','배','백','허','유','남',
   '심','노','하','곽','성','차','주','우','구','민',
   '진','지','연','함','변','염','여','추','도','소',
+  '선', // sample 회귀에서 발견된 누락 (선아무)
+];
+
+// 복성 (2글자 성씨) — 분리 매칭. 흔치 않으나 누락 시 FN.
+// 단성 일반명사("동방", "사공" 같은 단어)와 충돌 가능성은 낮음 (대부분 잘 쓰이지 않는 한자어).
+const KOREAN_DOUBLE_SURNAMES = [
+  '남궁','황보','제갈','사공','선우','서문','독고','을지',
 ];
 
 const SURNAME_CLASS = `[${KOREAN_SURNAMES.join('')}]`;
+const DOUBLE_SURNAME_PATTERN = KOREAN_DOUBLE_SURNAMES.join('|');
 // 성+1~2자 이름 + (선택적) 존칭/직책.
 // JS 정규식의 \b는 \w(ASCII) 기준이라 한글에서 동작 안 함 → lookbehind/lookahead 사용.
 // 길이 desc 정렬 — alternation에서 긴 것 우선 매치 (예: "팀장님" > "팀장")
 const TITLES = [
   '사무국장','이사장님','대표님','부장님','과장님','팀장님','회장님','사장님',
-  '이사님','선생님','박사님','이사장','본부장','센터장','대표','부장','과장',
-  '팀장','회장','사장','이사','국장','선생','박사','님','씨',
+  '이사님','선생님','박사님','이사장','본부장','센터장','연구원','연구자',
+  '교수님','교수','대표','부장','과장',
+  '팀장','회장','사장','이사','국장','선생','박사','단장','님','씨',
 ];
 const TITLE_PATTERN = TITLES.join('|');
 // "팀장님" 다음에 조사("께","이","은")가 한글로 붙는 게 흔하므로 trailing boundary 제외.
+// 단성(1자) 또는 복성(2자) + 1~2자 이름 + (선택적) 존칭/직책.
 const NAME_WITH_TITLE = new RegExp(
-  `(?<![가-힣])${SURNAME_CLASS}[가-힣]{1,2}(?=\\s?(?:${TITLE_PATTERN}))`,
+  `(?<![가-힣])(?:(?:${DOUBLE_SURNAME_PATTERN})[가-힣]{1,2}|${SURNAME_CLASS}[가-힣]{1,2})(?=\\s?(?:${TITLE_PATTERN}))`,
   'g',
 );
 // 존칭 없이도 매칭하지만 confidence 낮음. 한국 이름은 거의 모두 3자(성+2자) — 2자 매칭은
-// FP가 압도적(이사/주요/성명/관련/소속 등)이라 3자로 제한.
+// FP가 압도적(이사/주요/성명/관련/소속 등)이라 3자로 제한. 복성은 4자(복성+2자) 매칭.
 const NAME_BARE = new RegExp(
-  `(?<![가-힣])${SURNAME_CLASS}[가-힣]{2}(?![가-힣])`,
+  `(?<![가-힣])(?:(?:${DOUBLE_SURNAME_PATTERN})[가-힣]{2}|${SURNAME_CLASS}[가-힣]{2})(?![가-힣])`,
+  'g',
+);
+
+// P3: 파일명 internal token. SURNAME 정의가 위에 있으므로 여기서 컴파일.
+const FILENAME_NAME_TOKEN = new RegExp(
+  `(?<![가-힣])(?:(?:${DOUBLE_SURNAME_PATTERN})[가-힣]{2}|${SURNAME_CLASS}[가-힣]{2})(?=(?:${FILENAME_DOC_SUFFIX_PATTERN}))`,
   'g',
 );
 
@@ -189,6 +305,23 @@ const NAME_BARE_STOPLIST: ReadonlySet<string> = new Set([
   '문의의', '문의를', '문의가', '문제는', '문제를', '문제의', '문서를',
   '도움의', '도움을', '도움이', '도움말', '도움도',
   '백서의', '백서를', '백서가', '백분율',
+  // P0-1: 정형 문서 양식의 헤더/필드명 — NPO/공공 양식에서 자주 출현.
+  '이메일', '이력서', '신분증', '주민증', '주민세', '도서관', '도구함',
+  '문구점', '문구류', '도면도', '도면집',
+  '성씨가', '성씨는', '성씨를', '성씨의',
+  '구분란', '구분자', '구분된', '구분의',
+  '소요됨', '소요시', '소요된', '소요량',
+  '여행객', '여행지', '여행기',
+  '지원자', '지원을', '지원의', '지원이', '지원금', '지원서',
+  '주문서', '주문량', '주문의', '주문된',
+  '주차장', '주차장', '주차권',
+  '주식회', // "주식회사"의 일부 매치 차단 (3자에서 끊는 false trigger)
+  '백업본', '백업본', '백분위',
+  '한가위', '한가운', '한가지', '한걸음',
+  '강의장', '강의장', '강의록',
+  '서비스', '서비스',
+  '심사위', '심사를', '심사한', '심사진', '심사평', '심사의',
+  '신문지', '신문사', '신문기',
 ]);
 
 // =============================================================================
@@ -436,15 +569,94 @@ function detectKoreanName(text: string): RawMatch[] {
     if (m.index === undefined) continue;
     const matched = m[0];
     if (NAME_BARE_STOPLIST.has(matched)) continue;
-    // 마지막 글자가 명백한 조사면 단어+조사 — name 아님
+    // 마지막 글자가 명백한 조사면 단어+조사 — name 아님.
+    // '만'/'도'는 조사이기도 하지만 한국 이름 끝글자로도 흔함(지석만, 김민도) → 제외.
     const last = matched[matched.length - 1]!;
-    if ('을를이가은는의도만에께와과로'.includes(last)) continue;
+    if ('을를이가은는의에께와과로'.includes(last)) continue;
     out.push({
       start: m.index,
       end: m.index + matched.length,
       text: matched,
       category: 'person_name',
       confidence: 0.4,
+    });
+  }
+  // P3: 파일명 internal token — "[이름][이력서|사본|...]" 구분자 없이 붙은 경우.
+  for (const m of text.matchAll(FILENAME_NAME_TOKEN)) {
+    if (m.index === undefined) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'person_name',
+      confidence: 0.7,
+    });
+  }
+  // P2-2: 로마자 한국 이름 (Lee/Kim/... + CamelCase 또는 그 역순).
+  for (const m of text.matchAll(ROMAN_NAME_PATTERN)) {
+    if (m.index === undefined) continue;
+    if (ROMAN_NAME_STOPLIST.has(m[0])) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'person_name',
+      confidence: 0.5,
+    });
+  }
+  return out;
+}
+
+// =============================================================================
+// P1-2: 조직명 detector
+// =============================================================================
+function detectOrganization(text: string): RawMatch[] {
+  const out: RawMatch[] = [];
+  // 한국어: ○○대학교, ○○법인, ○○재단 등
+  for (const m of text.matchAll(ORGANIZATION_KOREAN)) {
+    if (m.index === undefined) continue;
+    if (ORGANIZATION_STOPLIST.has(m[0])) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'organization',
+      confidence: 0.7,
+    });
+  }
+  // 영문 약어 (KAIST, POSTECH 등) — 화이트리스트 매치만.
+  for (const m of text.matchAll(ACRONYM_PATTERN)) {
+    if (m.index === undefined) continue;
+    if (!ORGANIZATION_ACRONYM_KO_INSTITUTIONS.has(m[0])) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'organization',
+      confidence: 0.85,
+    });
+  }
+  return out;
+}
+
+// =============================================================================
+// P2-1: 은행 prefix 계좌번호 detector
+// =============================================================================
+function detectBankAccount(text: string): RawMatch[] {
+  const out: RawMatch[] = [];
+  for (const m of text.matchAll(BANK_ACCOUNT_PATTERN)) {
+    if (m.index === undefined) continue;
+    const digits = digitsOnly(m[0]);
+    // 자릿수 sanity: 8~16자리. 너무 짧거나 길면 노이즈.
+    if (digits.length < 8 || digits.length > 16) continue;
+    // 모두 같은 숫자면 placeholder/dummy → 거부.
+    if (/^(\d)\1+$/.test(digits)) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'account',
+      confidence: 0.85,
     });
   }
   return out;
@@ -518,6 +730,8 @@ export function detectKoreanPII(text: string): PIISpan[] {
     ...detectEmail(text),
     ...detectCredential(text),
     ...detectKoreanName(text),
+    ...detectOrganization(text),
+    ...detectBankAccount(text),
   ];
   return dedupe(raw).map((m) => ({
     start: m.start,
