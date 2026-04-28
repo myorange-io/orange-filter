@@ -4,7 +4,7 @@
     "description": "Extension name shown in Chrome Web Store and the extension manager."
   },
   "appDescription": {
-    "message": "LLM 붙여넣기·파일 업로드 전에 개인정보를 이 PC 안에서 자동 감지·마스킹합니다.",
+    "message": "LLM(ChatGPT·Gemini·Claude·오렌지임팩트)에 붙여넣거나 파일을 올리기 전에, 개인정보를 이 PC 안에서 자동으로 가립니다.",
     "description": "Extension description shown in Chrome Web Store."
   }
 }

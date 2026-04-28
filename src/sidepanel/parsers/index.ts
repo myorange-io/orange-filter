@@ -31,6 +31,10 @@ async function load(ext: string): Promise<FormatModule> {
       const m = await import('./docx');
       return { parse: m.parseDocx, exportMasked: m.exportDocx };
     }
+    case '.pptx': {
+      const m = await import('./pptx');
+      return { parse: m.parsePptx, exportMasked: m.exportPptx };
+    }
     case '.pdf': {
       const m = await import('./pdf');
       return { parse: m.parsePdf, exportMasked: m.exportPdf };
@@ -42,6 +46,13 @@ async function load(ext: string): Promise<FormatModule> {
     case '.hwpx': {
       const m = await import('./hwpx');
       return { parse: m.parseHwpx, exportMasked: m.exportHwpx };
+    }
+    case '.png':
+    case '.jpg':
+    case '.jpeg':
+    case '.webp': {
+      const m = await import('./image');
+      return { parse: m.parseImage, exportMasked: m.exportImage };
     }
     default:
       throw new Error(`지원하지 않는 확장자: ${ext}`);

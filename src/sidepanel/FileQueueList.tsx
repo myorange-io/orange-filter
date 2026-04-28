@@ -34,7 +34,7 @@ export interface FileQueueListProps {
 export function FileQueueList({ items, onRemove }: FileQueueListProps) {
   if (items.length === 0) return null;
   return (
-    <ul className="space-y-2" aria-label="파일 처리 큐">
+    <ul className="space-y-2" aria-label="파일 처리 목록">
       {items.map((item) => (
         <li
           key={item.id}

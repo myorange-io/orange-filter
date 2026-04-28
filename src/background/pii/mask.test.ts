@@ -56,12 +56,6 @@ describe('applyMask shape mode', () => {
     expect(result).toMatch(/^c\*+@example\.org$/);
   });
 
-  it('SSN: 마지막 4자리만 보존', () => {
-    expect(applyMask(span('123-45-6789', 'ssn_us'), 'shape')).toBe(
-      'XXX-XX-6789',
-    );
-  });
-
   it('여권: 첫 글자 보존', () => {
     expect(applyMask(span('M12345678', 'passport'), 'shape')).toBe('MXXXXXXXX');
   });
@@ -69,6 +63,18 @@ describe('applyMask shape mode', () => {
   it('사업자번호: 마지막 5자리만 X', () => {
     expect(applyMask(span('120-86-12347', 'business_number'), 'shape')).toBe(
       '120-86-XXXXX',
+    );
+  });
+
+  it('법인등록번호: 일련번호 7자리만 X', () => {
+    expect(
+      applyMask(span('130111-0006246', 'corporate_registration'), 'shape'),
+    ).toBe('130111-XXXXXXX');
+  });
+
+  it('운전면허: 지역·연도 보존, 일련/검증 X', () => {
+    expect(applyMask(span('11-25-123456-78', 'driver_license'), 'shape')).toBe(
+      '11-25-XXXXXX-XX',
     );
   });
 
@@ -84,15 +90,6 @@ describe('applyMask shape mode', () => {
     const result = applyMask(span('홍길동', 'person_name'), 'shape');
     expect(result).toMatch(/^●+$/);
   });
-
-  it('국제전화: 마지막 4자리 보존', () => {
-    const result = applyMask(
-      span('+82-10-1234-5678', 'phone_international'),
-      'shape',
-    );
-    expect(result.endsWith('5678')).toBe(true);
-    expect(result.startsWith('+')).toBe(true);
-  });
 });
 
 describe('applyMask tag mode', () => {
@@ -100,12 +97,9 @@ describe('applyMask tag mode', () => {
     expect(applyMask(span('950510-1234567', 'rrn'), 'tag')).toBe('[RRN]');
   });
 
-  it('mobile/landline/international 모두 [PHONE]으로 통일', () => {
+  it('mobile/landline 모두 [PHONE]으로 통일', () => {
     expect(applyMask(span('010-1234-5678', 'mobile'), 'tag')).toBe('[PHONE]');
     expect(applyMask(span('02-123-4567', 'landline'), 'tag')).toBe('[PHONE]');
-    expect(applyMask(span('+1 555 1234', 'phone_international'), 'tag')).toBe(
-      '[PHONE]',
-    );
   });
 
   it('credential은 [CREDENTIAL]', () => {

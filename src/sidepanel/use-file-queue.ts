@@ -2,8 +2,15 @@
 // S12: parsers/* + background DETECT_REQUEST + mask + exporters/* 통합.
 // S13에서 HWP/HWPX 추가, S14에서 카테고리 토글 연동.
 
-import { useCallback, useState } from 'react';
-import type { QueueItem } from './file-queue';
+import { useCallback, useRef, useState } from 'react';
+import {
+  partitionBySize,
+  formatMB,
+  MAX_FILE_SIZE_BYTES,
+  MAX_QUEUE_TOTAL_BYTES,
+  type QueueItem,
+  type SizeRejectReason,
+} from './file-queue';
 import { exportFile, parseFile } from './parsers';
 import type { Segment } from './parsers/types';
 import { maskText } from '@/background/pii/mask';
@@ -12,7 +19,7 @@ import type { PIISpan } from '@/shared/types';
 
 export interface UseFileQueueResult {
   items: QueueItem[];
-  add: (files: File[]) => void;
+  add: (files: File[]) => { rejected: SizeRejectReason[] };
   remove: (id: string) => void;
   clear: () => void;
 }
@@ -51,9 +58,16 @@ function suffixedName(original: string, suffix = '_masked', overrideExt?: string
   return `${base}${suffix}${ext}`;
 }
 
-/** HWP는 v1에서 round-trip 불가 → TXT로 fallback */
+/** HWP/이미지(OCR)는 v1에서 round-trip 불가 → TXT로 fallback */
 function shouldFallbackToTxt(file: File): boolean {
-  return file.name.toLowerCase().endsWith('.hwp');
+  const name = file.name.toLowerCase();
+  return (
+    name.endsWith('.hwp') ||
+    name.endsWith('.png') ||
+    name.endsWith('.jpg') ||
+    name.endsWith('.jpeg') ||
+    name.endsWith('.webp')
+  );
 }
 
 async function processItem(
@@ -87,6 +101,9 @@ async function processItem(
 
 export function useFileQueue(): UseFileQueueResult {
   const [items, setItems] = useState<QueueItem[]>([]);
+  // 최신 items 스냅샷 — add 내부에서 currentTotal 계산할 때 closure 회피
+  const itemsRef = useRef<QueueItem[]>([]);
+  itemsRef.current = items;
 
   const update = useCallback((id: string, patch: Partial<QueueItem>) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
@@ -94,13 +111,17 @@ export function useFileQueue(): UseFileQueueResult {
 
   const add = useCallback(
     (files: File[]) => {
-      const newItems: QueueItem[] = files.map((f) => ({
+      // 크기 상한: 이미 큐에 있는 파일 합계 + 신규 파일 합계 ≤ 500MB, 단일 파일 ≤ 100MB
+      const currentTotal = itemsRef.current.reduce((sum, it) => sum + it.file.size, 0);
+      const { accepted, rejected } = partitionBySize(files, currentTotal);
+
+      const newItems: QueueItem[] = accepted.map((f) => ({
         id: crypto.randomUUID(),
         file: f,
         status: 'queued',
         progress: 0,
       }));
-      setItems((prev) => [...prev, ...newItems]);
+      if (newItems.length > 0) setItems((prev) => [...prev, ...newItems]);
 
       for (const item of newItems) {
         processItem(item, update)
@@ -128,6 +149,8 @@ export function useFileQueue(): UseFileQueueResult {
             });
           });
       }
+
+      return { rejected };
     },
     [update],
   );
