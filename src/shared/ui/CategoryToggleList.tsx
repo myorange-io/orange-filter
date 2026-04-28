@@ -68,7 +68,7 @@ export function CategoryToggleList({
             {!compact && enabled && (
               <div className="mt-2">
                 <Select value={mode} onValueChange={(v) => onModeChange(id, v as MaskMode)}>
-                  <SelectTrigger className="h-8 w-full text-xs" aria-label={`${def.labelKo} 마스킹 모드`}>
+                  <SelectTrigger className="h-10 w-full text-xs" aria-label={`${def.labelKo} 마스킹 모드`}>
                     {/* 트리거에는 모드 라벨만. 드롭다운 펼치면 옵션마다 예시. */}
                     <SelectValue>{MODE_LABELS[mode]}</SelectValue>
                   </SelectTrigger>
