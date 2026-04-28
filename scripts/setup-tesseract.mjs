@@ -55,11 +55,15 @@ for (const [src, dst] of FILES_FROM_NPM) {
 console.log(`[tesseract-setup] worker + core: ${copied} files copied to public/tesseract/`);
 
 // 2) lang traineddata 다운로드 (이미 있으면 skip)
-//    tessdata_fast: integer-quantized LSTM, ~3MB/lang. NPO 한국어 OCR 정확도 충분.
-//    full LSTM(~12MB)은 v1.1+ 옵션. fast로 시작.
+//    Variant 선택 (TESSDATA_VARIANT 환경 변수, 기본 'fast'):
+//      - 'fast': integer-quantized LSTM, ~1.6MB/kor. NPO 한국어 OCR 정확도 대부분 충분.
+//      - 'best': float LSTM, ~13MB/kor. 정밀 OCR 필요 시 (예: 스캔 결산서 보고서).
 //    cdn: jsdelivr GitHub mirror — 안정적이고 글로벌 캐싱.
-const LANG_BASE = 'https://cdn.jsdelivr.net/gh/tesseract-ocr/tessdata_fast@main/';
+const VARIANT = (process.env.TESSDATA_VARIANT || 'fast').toLowerCase();
+const VARIANT_REPO = VARIANT === 'best' ? 'tessdata_best' : 'tessdata_fast';
+const LANG_BASE = `https://cdn.jsdelivr.net/gh/tesseract-ocr/${VARIANT_REPO}@main/`;
 const LANGS = ['kor', 'eng'];
+console.log(`[tesseract-setup] tessdata variant: ${VARIANT} (${VARIANT_REPO})`);
 
 function downloadFile(url, dst) {
   return new Promise((resolve, reject) => {

@@ -65,7 +65,7 @@
 | **E** | content script → Service Worker 권한 우회 | 낮음 | 메시지는 `chrome.runtime.sendMessage`로 정의된 `Message` 유니온만 처리. 모르는 kind는 무시 | 낮음 |
 
 **결정 근거**:
-- **closed shadow root**: open mode는 `host.shadowRoot`로 호스트 페이지가 모달 DOM에 접근 가능 → PII 미리보기 텍스트 읽힐 위험. closed mode는 Radix a11y 워크업이 호스트 body에 도달 못 해 dev console 경고가 발생하지만 (S6 Status Log 참조) 보안상 수용 가능한 트레이드오프.
+- **closed shadow root**: open mode는 `host.shadowRoot`로 호스트 페이지가 모달 DOM에 접근 가능 → PII 미리보기 텍스트 읽힐 위험. closed mode는 Radix가 graceful 처리하여 (DialogTitle/Description 명시 시점) dev console 경고도 발생 안 함 — S6 status log의 알려진 한계는 v1 출시 시점에 해소됨 (2026-04-28 검증).
 - **execCommand('insertText')**: textarea native setter / `dispatchEvent('input')` 대비 React-controlled component / ProseMirror에서 안정적이며, host 페이지 onPaste handler를 우회하지 않음 (정상 paste 경로 시뮬레이션).
 
 ### 2.2 File Upload (sidepanel)
@@ -145,7 +145,10 @@
 ## 5. Open Items (1.0 ship-blocker)
 
 1. **모델 무결성 검증** [높음] — 다운로드된 모델 weights의 SHA-256를 known-good hash와 비교. Transformers.js에 hook이 없으므로 wrapper 구현 필요. [Issue: TBD]
-2. **NPM dependency 자동 점검** [중] — `npm audit` + `socket.dev` 또는 `Snyk`을 CI에 추가. 특히 `xlsx`, `pdfjs-dist`, `hwp.js`. [Issue: TBD]
+2. **NPM dependency 자동 점검** [중] — 2026-04-28 기준 `npm audit` 결과 8건 (5 moderate, 3 high), 모두 자동 fix 미가능. 분석:
+   - **dev-only** (esbuild/vite/vitest/rollup): dev 서버 + 빌드 타임 한정. 사용자 영향 X. 무시 가능.
+   - **xlsx** (prototype pollution + ReDoS): no fix available. Mitigation: (1) 파일 크기 상한 (100MB/파일 + 500MB 큐) → ReDoS 입력 제한. (2) 사용자 신뢰 파일만 처리(NPO 직원 본인 양식). attacker-controlled XLSX paste는 일반 시나리오 아님. v1.1+에서 SheetJS commercial 또는 exceljs로 교체 검토.
+   - 자동화: GitHub Dependabot 활성화 권장. CI에 `npm audit --audit-level=high` 추가.
 3. **파일 크기 상한** [높음] — 100MB / 파일 + 큐 총합 500MB. 초과 시 reject + 사용자 안내. [Issue: TBD]
 4. **Cross-extension 노출 검토** [중] — 동일 isolated world에 진입할 수 있는 확장 시나리오 재검토. closed shadow root만으로 충분한지 외부 보안 검토 (S20 직전).
 5. **Subresource Integrity for HF CDN** [낮음] — Transformers.js가 SRI를 지원하지 않음. v2에서 wrapper로 추가.

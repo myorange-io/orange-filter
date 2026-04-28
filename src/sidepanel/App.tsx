@@ -117,7 +117,25 @@ export function App() {
 
         <section className="mb-6 space-y-3" aria-label="파일 업로드">
           <FileDropZone
-            onAdd={queue.add}
+            onAdd={(accepted) => {
+              const { rejected } = queue.add(accepted);
+              if (rejected.length > 0) {
+                const tooLarge = rejected.filter((r) => r.reason === 'file-too-large');
+                const queueFull = rejected.filter((r) => r.reason === 'queue-total-exceeded');
+                if (tooLarge.length > 0) {
+                  toast({
+                    title: `파일 용량 초과 (100MB)`,
+                    description: `${tooLarge.length}개 파일이 100MB 초과로 제외됐어요. 분할 후 다시 시도해 주세요.`,
+                  });
+                }
+                if (queueFull.length > 0) {
+                  toast({
+                    title: `큐 총합 한도(500MB) 초과`,
+                    description: `${queueFull.length}개 파일이 큐 한도 초과로 제외됐어요. 처리된 파일을 큐에서 제거 후 추가해 주세요.`,
+                  });
+                }
+              }
+            }}
             onReject={(files) => {
               toast({
                 title: '지원하지 않는 파일',

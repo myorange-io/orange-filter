@@ -42,3 +42,48 @@ export function fileExtension(file: File): string {
   const idx = name.lastIndexOf('.');
   return idx >= 0 ? name.slice(idx) : '';
 }
+
+// 크기 상한 (Threat Model §5 #3) — OOM/ReDoS 1차 방어.
+// xlsx ReDoS 취약점(no fix) mitigation 포함.
+export const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100MB
+export const MAX_QUEUE_TOTAL_BYTES = 500 * 1024 * 1024; // 500MB
+
+export interface SizeRejectReason {
+  file: File;
+  reason: 'file-too-large' | 'queue-total-exceeded';
+  limit: number;
+}
+
+/**
+ * 큐 추가 가능한 파일과 거부된 파일을 분리. 거부 사유 함께 반환.
+ * `currentTotalBytes`는 이미 큐에 있는 파일들의 합계 (호출자가 계산).
+ */
+export function partitionBySize(
+  files: ReadonlyArray<File>,
+  currentTotalBytes = 0,
+): { accepted: File[]; rejected: SizeRejectReason[] } {
+  const accepted: File[] = [];
+  const rejected: SizeRejectReason[] = [];
+  let runningTotal = currentTotalBytes;
+  for (const f of files) {
+    if (f.size > MAX_FILE_SIZE_BYTES) {
+      rejected.push({ file: f, reason: 'file-too-large', limit: MAX_FILE_SIZE_BYTES });
+      continue;
+    }
+    if (runningTotal + f.size > MAX_QUEUE_TOTAL_BYTES) {
+      rejected.push({
+        file: f,
+        reason: 'queue-total-exceeded',
+        limit: MAX_QUEUE_TOTAL_BYTES,
+      });
+      continue;
+    }
+    accepted.push(f);
+    runningTotal += f.size;
+  }
+  return { accepted, rejected };
+}
+
+export function formatMB(bytes: number): string {
+  return (bytes / 1024 / 1024).toFixed(0) + 'MB';
+}

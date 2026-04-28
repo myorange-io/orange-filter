@@ -5,14 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "predev": "node scripts/setup-tesseract.mjs",
+    "predev": "node scripts/setup-tesseract.mjs && node scripts/build-icons.mjs",
     "build": "tsc --noEmit && vite build",
-    "prebuild": "node scripts/setup-tesseract.mjs",
+    "prebuild": "node scripts/setup-tesseract.mjs && node scripts/build-icons.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "setup:tesseract": "node scripts/setup-tesseract.mjs"
+    "setup:tesseract": "node scripts/setup-tesseract.mjs",
+    "build:icons": "node scripts/build-icons.mjs",
+    "e2e": "playwright test",
+    "e2e:headed": "playwright test --headed",
+    "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
@@ -47,6 +51,8 @@
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0",
+    "@playwright/test": "^1.59.1",
+    "@resvg/resvg-js": "^2.6.2",
     "@types/chrome": "^0.0.270",
     "@types/node": "^20.11.24",
     "@types/papaparse": "^5.5.2",
