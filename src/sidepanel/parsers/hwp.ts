@@ -1,103 +1,245 @@
-// HWP 5.x (OLE2) 파서 — hwp.js로 텍스트 추출 (read-only).
-// 한국 NPO 결산공시 양식 등은 텍스트가 대부분 표(TableControl) 안에 있어 재귀 walker 필요.
+// HWP 5.x (OLE2) parser/serializer — @rhwp/core (Rust+WASM) 기반.
+// parse: 본문 단락 + 표 셀 단락을 traversal하여 segment 추출.
+// export: 같은 좌표로 deleteText/insertText 후 exportHwp() → 원본 레이아웃 보존.
 //
-// v1 한계: hwp.js는 viewer/parser. 마스킹 후 같은 .hwp로 round-trip은 미지원.
-// → exportHwp는 TXT fallback. v2에서 rhwp WASM 통합.
+// 보수적 정책 (v1.0):
+//  - 본문 단락에 inline control(표/이미지/도형 등)이 있으면 export 시 skip.
+//    이유: deleteText가 control 좌표를 흔들 수 있어 안전 우선.
+//    PII는 표 셀에 압도적이라 NPO 결산공시 use case는 충분히 커버됨.
+//  - parse 단계에서는 모두 emit (detection은 정상). export 단계에서만 선별 mutate.
 
-import { parse } from 'hwp.js';
 import type { ExportInput, ParseResult, Segment } from './types';
 
-interface HWPCharLike {
-  type: number; // 0=Char, 1=Inline, 2=Extened
-  value: number | string;
-}
-interface HWPParagraphLike {
-  content: HWPCharLike[];
-  controls?: HWPControlLike[];
-}
-interface HWPCellLike {
-  items?: HWPParagraphLike[];
-}
-interface HWPControlLike {
-  content?: HWPCellLike[][] | HWPParagraphLike[];
-}
-interface HWPSectionLike {
-  content: HWPParagraphLike[];
-}
-interface HWPDocumentLike {
-  sections: HWPSectionLike[];
+type RhwpModule = typeof import('@rhwp/core');
+
+let rhwpPromise: Promise<RhwpModule> | null = null;
+
+function isExtensionContext(): boolean {
+  return typeof chrome !== 'undefined' && !!chrome.runtime?.getURL;
 }
 
-function extractParaText(p: HWPParagraphLike): string {
-  let out = '';
-  for (const c of p.content) {
-    if (c.type !== 0) continue; // Inline/Extened 컨트롤 코드 skip
-    const v = c.value;
-    if (typeof v === 'string') {
-      out += v;
-    } else if (typeof v === 'number') {
-      // \x0B(11)는 컨트롤 마커 — skip. \r(13)/space(32) 이상만.
-      if (v === 9 || v === 10 || v === 13 || v >= 32) out += String.fromCharCode(v);
-    }
-  }
-  return out;
+async function initFromBytes(mod: RhwpModule, bytes: Uint8Array | ArrayBuffer): Promise<void> {
+  // initSync는 ArrayBuffer/SharedArrayBuffer 같은 BufferSource를 직접 받음.
+  mod.initSync({ module: bytes as BufferSource });
 }
 
-function walk(
-  para: HWPParagraphLike,
-  prefix: string,
-  segments: Segment[],
-  lines: string[],
-): void {
-  const text = extractParaText(para).trim();
-  if (text.length > 0) {
-    segments.push({ id: prefix, text });
-    lines.push(text);
-  }
-  if (!para.controls) return;
-  para.controls.forEach((ctrl, ci) => {
-    const content = ctrl.content;
-    if (!Array.isArray(content)) return;
-    // TableControl: content는 rows[]; 각 row는 cells[]; 각 cell.items가 paragraphs.
-    if (content.length > 0 && Array.isArray(content[0])) {
-      (content as HWPCellLike[][]).forEach((row, ri) => {
-        row.forEach((cell, cellIdx) => {
-          (cell.items ?? []).forEach((item, ii) => {
-            walk(item, `${prefix}-c${ci}r${ri}c${cellIdx}i${ii}`, segments, lines);
-          });
-        });
-      });
+async function loadRhwp(): Promise<RhwpModule> {
+  if (rhwpPromise) return rhwpPromise;
+  rhwpPromise = (async () => {
+    const mod = await import('@rhwp/core');
+    if (isExtensionContext()) {
+      const url = chrome.runtime.getURL('rhwp/rhwp_bg.wasm');
+      const res = await fetch(url);
+      const bytes = await res.arrayBuffer();
+      await initFromBytes(mod, bytes);
     } else {
-      // 그 외 컨트롤(텍스트 박스 등) — content가 paragraph[]
-      (content as HWPParagraphLike[]).forEach((p, ii) => {
-        if (p && Array.isArray(p.content)) {
-          walk(p, `${prefix}-c${ci}p${ii}`, segments, lines);
-        }
-      });
+      // node test 환경
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const wasmPath = path.join(process.cwd(), 'node_modules/@rhwp/core/rhwp_bg.wasm');
+      const bytes = fs.readFileSync(wasmPath);
+      await initFromBytes(mod, bytes);
     }
-  });
+    return mod;
+  })();
+  return rhwpPromise;
+}
+
+interface BodyLoc {
+  kind: 'body';
+  section: number;
+  para: number;
+  hasInlineControl: boolean;
+}
+interface CellLoc {
+  kind: 'cell';
+  section: number;
+  parentPara: number;
+  ctrl: number;
+  cell: number;
+  cellPara: number;
+}
+type SegLoc = BodyLoc | CellLoc;
+
+function locToId(loc: SegLoc): string {
+  if (loc.kind === 'body') return `s${loc.section}p${loc.para}`;
+  return `s${loc.section}p${loc.parentPara}c${loc.ctrl}cell${loc.cell}q${loc.cellPara}`;
+}
+
+interface HwpDoc {
+  free(): void;
+  getSectionCount(): number;
+  getParagraphCount(section: number): number;
+  getParagraphLength(section: number, para: number): number;
+  getTextRange(section: number, para: number, charOffset: number, count: number): string;
+  getControlTextPositions(section: number, para: number): string;
+  getTableDimensions(section: number, parentPara: number, ctrl: number): string;
+  getCellParagraphCount(section: number, parentPara: number, ctrl: number, cell: number): number;
+  getCellParagraphLength(
+    section: number,
+    parentPara: number,
+    ctrl: number,
+    cell: number,
+    cellPara: number,
+  ): number;
+  getTextInCell(
+    section: number,
+    parentPara: number,
+    ctrl: number,
+    cell: number,
+    cellPara: number,
+    charOffset: number,
+    count: number,
+  ): string;
+  deleteText(section: number, para: number, charOffset: number, count: number): string;
+  insertText(section: number, para: number, charOffset: number, text: string): string;
+  deleteTextInCell(
+    section: number,
+    parentPara: number,
+    ctrl: number,
+    cell: number,
+    cellPara: number,
+    charOffset: number,
+    count: number,
+  ): string;
+  insertTextInCell(
+    section: number,
+    parentPara: number,
+    ctrl: number,
+    cell: number,
+    cellPara: number,
+    charOffset: number,
+    text: string,
+  ): string;
+  exportHwp(): Uint8Array;
+}
+
+function controlPositions(doc: HwpDoc, section: number, para: number): number[] {
+  let json: string;
+  try {
+    json = doc.getControlTextPositions(section, para);
+  } catch {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(json);
+    return Array.isArray(parsed) ? (parsed as number[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function tableCellCount(doc: HwpDoc, section: number, parentPara: number, ctrl: number): number {
+  try {
+    const json = doc.getTableDimensions(section, parentPara, ctrl);
+    const dims = JSON.parse(json) as { cellCount?: number };
+    return typeof dims.cellCount === 'number' ? dims.cellCount : 0;
+  } catch {
+    return 0; // 표가 아닌 control (그림, 도형 등)
+  }
+}
+
+type Visitor = (loc: SegLoc, text: string, charLength: number) => void;
+
+function walkSection(doc: HwpDoc, section: number, visit: Visitor): void {
+  const paraCount = doc.getParagraphCount(section);
+  for (let p = 0; p < paraCount; p++) {
+    const positions = controlPositions(doc, section, p);
+    const hasInlineControl = positions.length > 0;
+
+    const len = doc.getParagraphLength(section, p);
+    const text = len > 0 ? doc.getTextRange(section, p, 0, len) : '';
+    visit({ kind: 'body', section, para: p, hasInlineControl }, text, len);
+
+    for (let ctrl = 0; ctrl < positions.length; ctrl++) {
+      const cellCount = tableCellCount(doc, section, p, ctrl);
+      for (let cell = 0; cell < cellCount; cell++) {
+        let cellParaCount: number;
+        try {
+          cellParaCount = doc.getCellParagraphCount(section, p, ctrl, cell);
+        } catch {
+          continue;
+        }
+        for (let cp = 0; cp < cellParaCount; cp++) {
+          const cellLen = doc.getCellParagraphLength(section, p, ctrl, cell, cp);
+          const cellText =
+            cellLen > 0 ? doc.getTextInCell(section, p, ctrl, cell, cp, 0, cellLen) : '';
+          visit(
+            { kind: 'cell', section, parentPara: p, ctrl, cell, cellPara: cp },
+            cellText,
+            cellLen,
+          );
+        }
+      }
+    }
+  }
 }
 
 export async function parseHwp(file: File): Promise<ParseResult> {
-  const buf = new Uint8Array(await file.arrayBuffer());
-  const doc = parse(buf, { type: 'array' }) as unknown as HWPDocumentLike;
+  const mod = await loadRhwp();
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const doc = new mod.HwpDocument(bytes) as unknown as HwpDoc;
   const segments: Segment[] = [];
   const lines: string[] = [];
-  doc.sections.forEach((section, si) => {
-    section.content.forEach((para, pi) => {
-      walk(para, `s${si}p${pi}`, segments, lines);
-    });
-  });
+  try {
+    const sectionCount = doc.getSectionCount();
+    for (let s = 0; s < sectionCount; s++) {
+      walkSection(doc, s, (loc, text) => {
+        if (text.trim().length === 0) return;
+        segments.push({ id: locToId(loc), text });
+        lines.push(text);
+      });
+    }
+  } finally {
+    doc.free();
+  }
   return { segments, combinedText: lines.join('\n') };
 }
 
-export async function exportHwp(_originalFile: File, masked: ExportInput): Promise<Blob> {
-  // v1 한계: 원본 .hwp round-trip 미지원. 마스킹된 텍스트만 .txt로 출력.
-  // 호출자는 결과 파일명을 .txt로 변경해야 함.
-  const lines: string[] = [];
-  for (const text of masked.values()) lines.push(text);
-  return new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+export async function exportHwp(originalFile: File, masked: ExportInput): Promise<Blob> {
+  const mod = await loadRhwp();
+  const bytes = new Uint8Array(await originalFile.arrayBuffer());
+  const doc = new mod.HwpDocument(bytes) as unknown as HwpDoc;
+  try {
+    const sectionCount = doc.getSectionCount();
+    for (let s = 0; s < sectionCount; s++) {
+      walkSection(doc, s, (loc, _text, len) => {
+        const replacement = masked.get(locToId(loc));
+        if (replacement === undefined) return;
+        if (loc.kind === 'body') {
+          // 단락에 inline control이 있으면 보수적으로 skip — control 좌표 흔들림 방지.
+          if (loc.hasInlineControl) return;
+          if (len > 0) doc.deleteText(loc.section, loc.para, 0, len);
+          if (replacement.length > 0) doc.insertText(loc.section, loc.para, 0, replacement);
+        } else {
+          if (len > 0) {
+            doc.deleteTextInCell(
+              loc.section,
+              loc.parentPara,
+              loc.ctrl,
+              loc.cell,
+              loc.cellPara,
+              0,
+              len,
+            );
+          }
+          if (replacement.length > 0) {
+            doc.insertTextInCell(
+              loc.section,
+              loc.parentPara,
+              loc.ctrl,
+              loc.cell,
+              loc.cellPara,
+              0,
+              replacement,
+            );
+          }
+        }
+      });
+    }
+    const out = doc.exportHwp();
+    return new Blob([out], { type: 'application/x-hwp' });
+  } finally {
+    doc.free();
+  }
 }
-
-/** HWP 익스포트는 TXT fallback이라 호출자가 파일명 확장자를 바꿔야 함 */
-export const HWP_EXPORT_IS_TXT = true;

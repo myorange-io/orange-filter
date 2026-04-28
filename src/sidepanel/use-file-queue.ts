@@ -51,11 +51,6 @@ function suffixedName(original: string, suffix = '_masked', overrideExt?: string
   return `${base}${suffix}${ext}`;
 }
 
-/** HWP는 v1에서 round-trip 불가 → TXT로 fallback */
-function shouldFallbackToTxt(file: File): boolean {
-  return file.name.toLowerCase().endsWith('.hwp');
-}
-
 async function processItem(
   item: QueueItem,
   update: (id: string, patch: Partial<QueueItem>) => void,
@@ -79,9 +74,7 @@ async function processItem(
   return {
     detectedCount: totalSpans,
     outputBlob: blob,
-    outputName: shouldFallbackToTxt(item.file)
-      ? suffixedName(item.file.name, '_masked', '.txt')
-      : suffixedName(item.file.name),
+    outputName: suffixedName(item.file.name),
   };
 }
 

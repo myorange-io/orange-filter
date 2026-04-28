@@ -8,9 +8,22 @@ import { parseTxt, exportTxt } from './txt';
 import { parseCsv, exportCsv } from './csv';
 import { parseXlsx, exportXlsx } from './xlsx';
 import { parseDocx, exportDocx } from './docx';
-import { parseHwp } from './hwp';
+import { exportHwp, parseHwp } from './hwp';
 
-const SAMPLE_DIR = join(process.cwd(), 'sample');
+// 사용자가 sample/을 다른 위치에 두면 NPO_SAMPLE_DIR로 override.
+// worktree에서 돌릴 때는 상위 main repo의 sample/ 을 가리키도록 fallback 검색.
+function resolveSampleDir(): string {
+  if (process.env.NPO_SAMPLE_DIR) return process.env.NPO_SAMPLE_DIR;
+  const candidates = [
+    join(process.cwd(), 'sample'),
+    join(process.cwd(), '..', '..', '..', 'sample'),
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return candidates[0]!;
+}
+const SAMPLE_DIR = resolveSampleDir();
 
 function fileFromDisk(path: string): File {
   const buf = readFileSync(path);
@@ -113,7 +126,6 @@ describe('HWP 5.x parser (sample 픽스처)', () => {
     const file = fileFromDisk(samplePath!);
     const parsed = await parseHwp(file);
     expect(parsed.segments.length).toBeGreaterThan(0);
-    // 결산공시 양식이라 "공익법인" 또는 "결산서류" 등의 단어가 들어있어야 함
     const combined = parsed.combinedText;
     expect(combined.length).toBeGreaterThan(0);
     const hasKoreanForm =
@@ -123,6 +135,34 @@ describe('HWP 5.x parser (sample 픽스처)', () => {
       combined.includes('명세');
     expect(hasKoreanForm).toBe(true);
   });
+
+  test.skipIf(!samplePath)(
+    'round-trip: 표 셀 텍스트를 마스킹 후 재파싱하면 마스킹된 값이 보임',
+    async () => {
+      const file = fileFromDisk(samplePath!);
+      const parsed = await parseHwp(file);
+      // 표 셀 segment id = `s${sec}p${para}c${ctrl}cell${cell}q${cellPara}`
+      const cellSeg = parsed.segments.find(
+        (s) => /cell\d/.test(s.id) && s.text.trim().length > 1,
+      );
+      expect(cellSeg).toBeDefined();
+
+      const sentinel = '__MASKED_SENTINEL_42__';
+      const masked = new Map<string, string>();
+      masked.set(cellSeg!.id, sentinel);
+
+      const blob = await exportHwp(file, masked);
+      const buf = await blob.arrayBuffer();
+      // 재파싱
+      const reFile = new File([buf], 'reparse.hwp');
+      const reParsed = await parseHwp(reFile);
+      const reSeg = reParsed.segments.find((s) => s.id === cellSeg!.id);
+      expect(reSeg?.text).toBe(sentinel);
+      // 원본 단락 수 보존 (구조 회귀 가드)
+      expect(reParsed.segments.length).toBe(parsed.segments.length);
+    },
+    30_000,
+  );
 });
 
 describe('DOCX parser', () => {
