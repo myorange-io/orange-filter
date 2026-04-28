@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { detectHeaderRow } from '@/background/pii/header-hints';
 import type { ExportInput, ParseResult, Segment } from './types';
 
 function cellId(sheet: string, address: string): string {
@@ -15,8 +16,31 @@ export async function parseXlsx(file: File): Promise<ParseResult> {
     if (!sheet) continue;
     const range = sheet['!ref'] ? XLSX.utils.decode_range(sheet['!ref']) : null;
     if (!range) continue;
+
+    // 헤더 행 자동 감지 — 시트 처음 5행에서 키워드와 매치되는 셀이 가장 많은 행을 헤더로.
+    // 헤더 행이 row 0이 아닐 수 있음 (예: row 0에 메모/제목, row 1이 진짜 헤더).
+    const previewRows: string[][] = [];
+    const previewLimit = Math.min(5, range.e.r - range.s.r + 1);
+    for (let R = range.s.r; R < range.s.r + previewLimit; R++) {
+      const rowCells: string[] = [];
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = sheet[addr];
+        const raw =
+          cell?.t === 's' && typeof cell.v === 'string' ? cell.v : (cell?.w ?? '');
+        rowCells.push(raw.normalize('NFC'));
+      }
+      previewRows.push(rowCells);
+    }
+    const headerInfo = detectHeaderRow(previewRows);
+    const headerRowIndex = headerInfo
+      ? range.s.r + headerInfo.rowIndex
+      : undefined;
+    const categoryByCol = headerInfo?.categoryByCol;
+
     for (let R = range.s.r; R <= range.e.r; R++) {
       const rowCells: string[] = [];
+      const isHeaderRow = R === headerRowIndex;
       for (let C = range.s.c; C <= range.e.c; C++) {
         const addr = XLSX.utils.encode_cell({ r: R, c: C });
         const cell = sheet[addr];
@@ -26,8 +50,17 @@ export async function parseXlsx(file: File): Promise<ParseResult> {
         }
         // 수식(`f`)이 있으면 결과(`v`)는 표시용 — 수식 자체는 마스킹하지 않음 (formula는 PII 가능성 낮음).
         if (cell.t === 's' && typeof cell.v === 'string' && cell.v.length > 0) {
-          segments.push({ id: cellId(name, addr), text: cell.v });
-          rowCells.push(cell.v);
+          // macOS Finder가 한글 파일명을 NFD(자모 분해)로 저장 → 정규식 [가-힣]가 매치 못 함.
+          // 파싱 시 NFC로 정규화. 의미 동일, OS 표시 무관.
+          const text = cell.v.normalize('NFC');
+          const seg: Segment = { id: cellId(name, addr), text };
+          if (isHeaderRow) {
+            seg.isHeader = true;
+          } else if (categoryByCol?.has(C - range.s.c)) {
+            seg.forcedCategory = categoryByCol.get(C - range.s.c);
+          }
+          segments.push(seg);
+          rowCells.push(text);
         } else if (cell.w && typeof cell.w === 'string') {
           rowCells.push(cell.w);
         } else {

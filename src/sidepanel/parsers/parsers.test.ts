@@ -79,6 +79,28 @@ describe('CSV parser', () => {
     expect(out).toContain('010-1234-XXXX');
     expect(out).toContain('이름,전화,이메일'); // 헤더 보존
   });
+
+  test('헤더 인식 — 컬럼별 forcedCategory 부여, 헤더 행은 isHeader', () => {
+    return (async () => {
+      const csv = '이름,연락처,이메일\n홍길동,010-1234-5678,a@b.com';
+      const file = new File([csv], 'test.csv');
+      const parsed = await parseCsv(file);
+
+      const header = parsed.segments.filter((s) => s.isHeader);
+      expect(header).toHaveLength(3);
+
+      const data = parsed.segments.filter((s) => !s.isHeader);
+      expect(data.find((s) => s.text === '홍길동')?.forcedCategory).toBe(
+        'person_name',
+      );
+      expect(data.find((s) => s.text === '010-1234-5678')?.forcedCategory).toBe(
+        'mobile',
+      );
+      expect(data.find((s) => s.text === 'a@b.com')?.forcedCategory).toBe(
+        'email',
+      );
+    })();
+  });
 });
 
 describe('XLSX parser (sample 픽스처)', () => {
@@ -90,6 +112,32 @@ describe('XLSX parser (sample 픽스처)', () => {
     // 양식이라 비어있을 수 있지만 헤더 텍스트는 있어야 함
     expect(parsed.segments.length).toBeGreaterThan(0);
     expect(parsed.combinedText.length).toBeGreaterThan(0);
+  });
+
+  test('헤더가 첫 행이 아닌 케이스 — 메모/제목 후 두 번째 행이 헤더', async () => {
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['4/3까지 1차 취합', '', ''], // row 0: 메모
+      ['no.', '성명', '연락처'], // row 1: 진짜 헤더
+      [1, '홍길동', '010-1234-5678'], // row 2: 데이터
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as Uint8Array;
+    const file = new File([buf], 'test.xlsx');
+
+    const parsed = await parseXlsx(file);
+    const memo = parsed.segments.find((s) => s.text.includes('1차 취합'));
+    expect(memo?.isHeader).toBeFalsy(); // row 0은 헤더 아님
+
+    const headerCell = parsed.segments.find((s) => s.text === '성명');
+    expect(headerCell?.isHeader).toBe(true);
+
+    const dataName = parsed.segments.find((s) => s.text === '홍길동');
+    expect(dataName?.forcedCategory).toBe('person_name');
+
+    const dataPhone = parsed.segments.find((s) => s.text === '010-1234-5678');
+    expect(dataPhone?.forcedCategory).toBe('mobile');
   });
 
   test('합성 xlsx round trip — 셀 마스킹 후 재파싱 일치', async () => {
