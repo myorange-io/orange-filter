@@ -1,5 +1,4 @@
-// 사이드 패널 메인 — 3-tab UI(필터/파일/설정).
-// S14: 필터 탭 = CategoryToggleList(전체 16) · 설정 탭 = per-domain whitelist.
+// 사이드 패널 메인 — 타이틀 → 파일 업로드/큐 → 필터·설정 탭 순서.
 
 import { useEffect, useState } from 'react';
 import { Shield, Trash2 } from 'lucide-react';
@@ -88,13 +87,32 @@ export function App() {
           </div>
         </header>
 
-        <Tabs defaultValue="filter" className="mb-6">
+        <section className="mb-6 space-y-3" aria-label="파일 업로드">
+          <FileDropZone
+            onAdd={queue.add}
+            onReject={(files) => {
+              toast({
+                title: '지원하지 않는 파일',
+                description: `${files.length}개 파일이 제외됐습니다.`,
+              });
+            }}
+          />
+          <FileQueueList items={queue.items} onRemove={queue.remove} />
+          {queue.items.length > 0 && (
+            <button
+              type="button"
+              onClick={queue.clear}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              큐 비우기
+            </button>
+          )}
+        </section>
+
+        <Tabs defaultValue="filter">
           <TabsList className="w-full">
             <TabsTrigger value="filter" className="flex-1">
               필터
-            </TabsTrigger>
-            <TabsTrigger value="files" className="flex-1">
-              파일
             </TabsTrigger>
             <TabsTrigger value="settings" className="flex-1">
               설정
@@ -105,7 +123,9 @@ export function App() {
             <section className="rounded-lg border bg-card p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-sm font-bold">민감정보 카테고리</h2>
-                <Badge variant="accent">{enabledCount}/{CATEGORY_ORDER.length} ON</Badge>
+                <Badge variant="accent">
+                  {enabledCount}/{CATEGORY_ORDER.length} ON
+                </Badge>
               </div>
               <CategoryToggleList
                 enabledByCategory={settings.enabledByCategory}
@@ -114,28 +134,6 @@ export function App() {
                 onModeChange={setMode}
               />
             </section>
-          </TabsContent>
-
-          <TabsContent value="files" className="space-y-4">
-            <FileDropZone
-              onAdd={queue.add}
-              onReject={(files) => {
-                toast({
-                  title: '지원하지 않는 파일',
-                  description: `${files.length}개 파일이 제외됐습니다.`,
-                });
-              }}
-            />
-            <FileQueueList items={queue.items} onRemove={queue.remove} />
-            {queue.items.length > 0 && (
-              <button
-                type="button"
-                onClick={queue.clear}
-                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-              >
-                큐 비우기
-              </button>
-            )}
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4">
@@ -162,7 +160,10 @@ export function App() {
               {settings.whitelistedDomains.length > 0 && (
                 <ul className="mt-3 space-y-1.5">
                   {settings.whitelistedDomains.map((d) => (
-                    <li key={d} className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2">
+                    <li
+                      key={d}
+                      className="flex items-center justify-between rounded-md border bg-muted/40 px-3 py-2"
+                    >
                       <span className="text-sm">{d}</span>
                       <button
                         type="button"

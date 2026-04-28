@@ -164,7 +164,7 @@ export function PasteModal({
             꾹 누르면 원본 그대로
           </HoldButton>
           <div className="flex flex-1 justify-end gap-2">
-            <Button variant="outline" onClick={onCancel}>
+            <Button variant="outline" onClick={() => onOpenChange(false)}>
               취소
             </Button>
             <Button onClick={handleConfirm}>{totalMasked}건 가리고 붙여넣기</Button>
