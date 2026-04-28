@@ -1,7 +1,7 @@
 // 사이드 패널 메인 — 타이틀 → 파일 업로드/큐 → 필터·설정 탭 순서.
 
 import { useEffect, useState } from 'react';
-import { Shield, Trash2 } from 'lucide-react';
+import { AlertTriangle, Shield, Trash2 } from 'lucide-react';
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
 import { CategoryToggleList } from '@/shared/ui/CategoryToggleList';
@@ -12,6 +12,8 @@ import { Toaster } from '@/shared/ui/toaster';
 import { TooltipProvider } from '@/shared/ui/tooltip';
 import { useToast } from '@/shared/ui/use-toast';
 import { CATEGORY_ORDER } from '@/background/pii/categories';
+import { TIER1_DEFAULT } from '@/shared/models';
+import type { Message, ModelStatus } from '@/shared/messages';
 import {
   defaultSettings,
   loadSettings,
@@ -25,15 +27,70 @@ import { FileQueueList } from './FileQueueList';
 import { ModelManager } from './ModelManager';
 import { useFileQueue } from './use-file-queue';
 
+const MODEL_CACHED_KEY = 'oi-filter-model-cached-v1';
+
+function readCachedFlag(): boolean {
+  try {
+    return window.localStorage?.getItem(MODEL_CACHED_KEY) === TIER1_DEFAULT.modelId;
+  } catch {
+    return false;
+  }
+}
+
 export function App() {
   const queue = useFileQueue();
   const { toast } = useToast();
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [newDomain, setNewDomain] = useState('');
+  const [activeTab, setActiveTab] = useState<'filter' | 'models' | 'settings'>('filter');
+  const [modelCached, setModelCached] = useState<boolean>(() => readCachedFlag());
 
   useEffect(() => {
     void loadSettings().then(setSettings);
     return subscribeSettings(setSettings);
+  }, []);
+
+  // 모델 캐시 상태 — chrome.runtime이 있으면 MODEL_STATUS query, 없으면 localStorage 마커.
+  useEffect(() => {
+    if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return;
+    const reqId = crypto.randomUUID();
+    chrome.runtime
+      .sendMessage({
+        kind: 'MODEL_STATUS',
+        requestId: reqId,
+        payload: { activeModelId: null, cachedModels: [], ready: false },
+      } satisfies Message)
+      .then((resp: ModelStatus | undefined) => {
+        if (resp?.kind === 'MODEL_STATUS') {
+          const cached = resp.payload.cachedModels.includes(TIER1_DEFAULT.modelId);
+          setModelCached(cached);
+          if (cached) {
+            try {
+              window.localStorage?.setItem(MODEL_CACHED_KEY, TIER1_DEFAULT.modelId);
+            } catch {
+              /* private mode */
+            }
+          }
+        }
+      })
+      .catch(() => {
+        /* offscreen 미준비 — localStorage 마커로 fallback */
+      });
+    // 다운로드 완료 broadcast listen — ModelManager가 받기 누른 후
+    const handler = (msg: Message) => {
+      if (msg.kind === 'MODEL_DOWNLOAD_PROGRESS' && msg.payload.modelId === TIER1_DEFAULT.modelId) {
+        if (msg.payload.phase === 'done') {
+          setModelCached(true);
+          try {
+            window.localStorage?.setItem(MODEL_CACHED_KEY, TIER1_DEFAULT.modelId);
+          } catch {
+            /* skip */
+          }
+        }
+      }
+    };
+    chrome.runtime.onMessage.addListener(handler);
+    return () => chrome.runtime.onMessage.removeListener(handler);
   }, []);
 
   const persist = (next: Settings) => {
@@ -88,13 +145,39 @@ export function App() {
           </div>
         </header>
 
-        {/* Peak-End 카운터 — confirm 직후 storage onChanged로 즉시 반영. 0건일 땐 환영 카피. */}
-        <section
-          className="mb-6 rounded-lg border bg-gradient-to-br from-primary/5 to-primary/10 p-4"
-          aria-label="누적 보호 통계"
-          aria-live="polite"
-        >
-          {settings.stats.totalSpansMasked > 0 ? (
+        {/* 모델 미다운로드 — 사용 전 받기 유도 (Peak-End: 첫 인상에서 가치를 명확히) */}
+        {!modelCached && (
+          <section
+            className="mb-6 rounded-lg border-2 border-primary bg-primary/5 p-4"
+            role="status"
+          >
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+              <div className="flex-1">
+                <h2 className="text-sm font-bold">한국어 NER 모델을 먼저 받아주세요</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  받기 전에는 정규식 기반 기본 보호만 동작합니다. 약 50MB · 한 번만 받으면 오프라인에서도 동작.
+                </p>
+                <Button
+                  size="sm"
+                  className="mt-2"
+                  onClick={() => setActiveTab('models')}
+                  aria-label="모델 탭으로 이동해서 다운로드"
+                >
+                  모델 받으러 가기
+                </Button>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Peak-End 카운터 — confirm 직후 storage onChanged로 즉시 반영. 0건일 땐 숨김. */}
+        {settings.stats.totalSpansMasked > 0 && (
+          <section
+            className="mb-6 rounded-lg border bg-gradient-to-br from-primary/5 to-primary/10 p-4"
+            aria-label="누적 보호 통계"
+            aria-live="polite"
+          >
             <div className="flex items-baseline gap-2">
               <span className="text-2xl font-bold tabular-nums text-primary">
                 {settings.stats.totalSpansMasked.toLocaleString('ko-KR')}
@@ -103,12 +186,8 @@ export function App() {
                 건의 개인정보를 이 PC가 지켜냈어요
               </span>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              첫 번째 paste를 기다리고 있어요. 모든 보호 기록은 이 PC 안에서만 보관됩니다.
-            </p>
-          )}
-        </section>
+          </section>
+        )}
 
         <section className="mb-6 space-y-3" aria-label="파일 업로드">
           <FileDropZone
@@ -132,7 +211,10 @@ export function App() {
           )}
         </section>
 
-        <Tabs defaultValue="filter">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as 'filter' | 'models' | 'settings')}
+        >
           <TabsList className="w-full">
             <TabsTrigger value="filter" className="flex-1">
               필터

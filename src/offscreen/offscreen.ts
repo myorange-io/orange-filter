@@ -7,7 +7,6 @@ import {
   downloadModel,
   getActiveModelId,
   listCachedModels,
-  loadModel,
 } from './model-runtime';
 import type { Message, ModelDownloadProgress } from '@/shared/messages';
 
@@ -148,7 +147,5 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
   }
 });
 
-// 워밍업 — 백그라운드 진입과 동시에 모델 로드 시작 (첫 paste 지연 감소).
-void loadModel().catch((err) => {
-  console.warn('[npo-privacy] model warmup failed:', err);
-});
+// 자동 워밍업 없음 — 사용자가 사이드패널에서 명시적으로 "받기" 클릭해야 다운로드 시작.
+// 이미 IndexedDB에 캐시된 경우 첫 paste 시 loadModel()이 즉시 반환 (네트워크 X).
