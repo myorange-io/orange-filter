@@ -35,9 +35,9 @@ export interface ModelDefinition {
 export const TIER1_DEFAULT: ModelDefinition = {
   tier: 'tier1-default',
   modelId: 'YATAV-ENT/aegis-personal-pii-ner',
-  labelKo: '한국어 정밀 NER (AEGIS PII)',
+  labelKo: '한국어 정밀 보호 모델',
   descriptionKo:
-    '한국어·영어 PII를 직접 학습한 mBERT 기반 모델. 주민번호·운전면허·계좌·카드 등 한국 PII 라벨을 직접 인식합니다.',
+    '한국어·영어 개인정보를 학습한 AI 인식 모델. 주민등록번호·운전면허번호·계좌·카드 같은 항목을 정확하게 잡아내요.',
   approxDownloadMB: 50,
   license: 'Apache-2.0',
   shippable: true,

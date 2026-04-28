@@ -132,8 +132,8 @@ export function ModelManager() {
     <section className="rounded-lg border bg-card p-4">
       <h2 className="mb-1 text-sm font-bold">모델 관리</h2>
       <p className="mb-3 text-xs text-muted-foreground">
-        한국어 정밀 NER을 받아주세요. 받기 전에는 정규식 기반 기본 보호만 동작합니다. 모든
-        추론은 이 PC 안에서 이뤄집니다.
+        한국어 정밀 보호 모델을 설치해주세요. 지금은 기본 패턴 보호만 동작해요. 모든 처리는 이
+        PC 안에서 이뤄집니다.
       </p>
 
       <ul className="space-y-3" aria-label="모델 목록">
@@ -152,28 +152,31 @@ export function ModelManager() {
               <div className="flex items-start gap-2">
                 <div className="mt-0.5">
                   {cached ? (
-                    <CheckCircle2 className="h-4 w-4 text-primary" aria-label="다운로드됨" />
+                    <CheckCircle2 className="h-4 w-4 text-primary" aria-label="설치됨" />
                   ) : (
-                    <Circle className="h-4 w-4 text-muted-foreground" aria-label="미다운로드" />
+                    <Circle className="h-4 w-4 text-muted-foreground" aria-label="미설치" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     <span className="text-sm font-bold">{def.labelKo}</span>
+                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                      {def.modelId.split('/').pop()}
+                    </span>
                     {isActive && cached && <Badge>활성</Badge>}
                     {!def.shippable && <Badge variant="outline">준비중</Badge>}
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">{def.descriptionKo}</p>
                   <p className="mt-1 text-[11px] text-muted-foreground tabular-nums">
-                    약 {def.approxDownloadMB}MB · {def.license}
+                    약 {def.approxDownloadMB}MB
                   </p>
 
                   {downloading && (
                     <div className="mt-2 space-y-1">
-                      <Progress value={state.pct} aria-label="다운로드 진행률" />
+                      <Progress value={state.pct} aria-label="설치 진행률" />
                       <div className="flex justify-between text-[11px] text-muted-foreground tabular-nums">
                         <span>{Math.round(state.pct)}%</span>
-                        <span>{state.file ?? '파일 받는 중'}</span>
+                        <span>{state.file ?? '설치 중'}</span>
                       </div>
                     </div>
                   )}
@@ -191,10 +194,10 @@ export function ModelManager() {
                       size="sm"
                       onClick={() => startDownload(def)}
                       disabled={!def.shippable}
-                      aria-label={`${def.labelKo} 다운로드 시작`}
+                      aria-label={`${def.labelKo} 설치 시작`}
                     >
                       <Download className="h-3.5 w-3.5" />
-                      받기
+                      설치하기
                     </Button>
                   )}
                   {downloading && (
@@ -202,7 +205,7 @@ export function ModelManager() {
                       size="sm"
                       variant="outline"
                       onClick={() => cancelDownload(def)}
-                      aria-label={`${def.labelKo} 다운로드 취소`}
+                      aria-label={`${def.labelKo} 설치 취소`}
                     >
                       <X className="h-3.5 w-3.5" />
                       취소
@@ -217,8 +220,8 @@ export function ModelManager() {
 
       {!allCached && (
         <p className="mt-3 text-[11px] text-muted-foreground">
-          모델이 다운로드되어야 한국어 인명·주소·조직명 등을 정밀하게 잡을 수 있어요. 받기 전에는
-          정규식이 RRN·전화·계좌·카드 등 패턴 기반 PII만 처리합니다.
+          설치하면 한국어 사람 이름·주소·조직명도 정밀하게 보호해요. 지금은 주민등록번호·전화·계좌·카드 등
+          정해진 패턴만 자동으로 보호합니다.
         </p>
       )}
     </section>

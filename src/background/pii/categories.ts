@@ -124,7 +124,7 @@ export const CATEGORIES: Record<PIICategory, CategoryDefinition> = {
   },
   credential: {
     id: 'credential',
-    labelKo: '자격정보(API 키·토큰·비밀번호)',
+    labelKo: '비밀번호·인증키 (API 키·토큰)',
     labelEn: 'Credentials (API Keys, Tokens, Passwords)',
     defaultEnabled: true,
     defaultMaskMode: 'remove',

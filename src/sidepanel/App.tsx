@@ -1,7 +1,7 @@
 // 사이드 패널 메인 — 타이틀 → 파일 업로드/큐 → 필터·설정 탭 순서.
 
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Shield, Trash2 } from 'lucide-react';
+import { Shield, Trash2 } from 'lucide-react';
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
 import { CategoryToggleList } from '@/shared/ui/CategoryToggleList';
@@ -12,8 +12,6 @@ import { Toaster } from '@/shared/ui/toaster';
 import { TooltipProvider } from '@/shared/ui/tooltip';
 import { useToast } from '@/shared/ui/use-toast';
 import { CATEGORY_ORDER } from '@/background/pii/categories';
-import { TIER1_DEFAULT } from '@/shared/models';
-import type { Message, ModelStatus } from '@/shared/messages';
 import {
   defaultSettings,
   loadSettings,
@@ -27,70 +25,16 @@ import { FileQueueList } from './FileQueueList';
 import { ModelManager } from './ModelManager';
 import { useFileQueue } from './use-file-queue';
 
-const MODEL_CACHED_KEY = 'oi-filter-model-cached-v1';
-
-function readCachedFlag(): boolean {
-  try {
-    return window.localStorage?.getItem(MODEL_CACHED_KEY) === TIER1_DEFAULT.modelId;
-  } catch {
-    return false;
-  }
-}
-
 export function App() {
   const queue = useFileQueue();
   const { toast } = useToast();
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [newDomain, setNewDomain] = useState('');
-  const [activeTab, setActiveTab] = useState<'filter' | 'models' | 'settings'>('filter');
-  const [modelCached, setModelCached] = useState<boolean>(() => readCachedFlag());
+  const [activeTab, setActiveTab] = useState<'filter' | 'settings'>('filter');
 
   useEffect(() => {
     void loadSettings().then(setSettings);
     return subscribeSettings(setSettings);
-  }, []);
-
-  // 모델 캐시 상태 — chrome.runtime이 있으면 MODEL_STATUS query, 없으면 localStorage 마커.
-  useEffect(() => {
-    if (typeof chrome === 'undefined' || !chrome.runtime?.sendMessage) return;
-    const reqId = crypto.randomUUID();
-    chrome.runtime
-      .sendMessage({
-        kind: 'MODEL_STATUS',
-        requestId: reqId,
-        payload: { activeModelId: null, cachedModels: [], ready: false },
-      } satisfies Message)
-      .then((resp: ModelStatus | undefined) => {
-        if (resp?.kind === 'MODEL_STATUS') {
-          const cached = resp.payload.cachedModels.includes(TIER1_DEFAULT.modelId);
-          setModelCached(cached);
-          if (cached) {
-            try {
-              window.localStorage?.setItem(MODEL_CACHED_KEY, TIER1_DEFAULT.modelId);
-            } catch {
-              /* private mode */
-            }
-          }
-        }
-      })
-      .catch(() => {
-        /* offscreen 미준비 — localStorage 마커로 fallback */
-      });
-    // 다운로드 완료 broadcast listen — ModelManager가 받기 누른 후
-    const handler = (msg: Message) => {
-      if (msg.kind === 'MODEL_DOWNLOAD_PROGRESS' && msg.payload.modelId === TIER1_DEFAULT.modelId) {
-        if (msg.payload.phase === 'done') {
-          setModelCached(true);
-          try {
-            window.localStorage?.setItem(MODEL_CACHED_KEY, TIER1_DEFAULT.modelId);
-          } catch {
-            /* skip */
-          }
-        }
-      }
-    };
-    chrome.runtime.onMessage.addListener(handler);
-    return () => chrome.runtime.onMessage.removeListener(handler);
   }, []);
 
   const persist = (next: Settings) => {
@@ -140,36 +84,18 @@ export function App() {
           <div className="flex-1">
             <h1 className="text-xl font-bold">오렌지 필터</h1>
             <p className="text-sm text-muted-foreground">
-              개인정보를 이 PC 안에서 자동으로 가립니다. 외부 서버에 전송하지 않습니다.
+              개인정보를 이 PC 안에서 자동으로 가립니다.
+            </p>
+            <p className="text-sm text-muted-foreground">
+              외부 서버에 전송하지 않습니다.
             </p>
           </div>
         </header>
 
-        {/* 모델 미다운로드 — 사용 전 받기 유도 (Peak-End: 첫 인상에서 가치를 명확히) */}
-        {!modelCached && (
-          <section
-            className="mb-6 rounded-lg border-2 border-primary bg-primary/5 p-4"
-            role="status"
-          >
-            <div className="flex items-start gap-2">
-              <AlertTriangle className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-              <div className="flex-1">
-                <h2 className="text-sm font-bold">한국어 NER 모델을 먼저 받아주세요</h2>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  받기 전에는 정규식 기반 기본 보호만 동작합니다. 약 50MB · 한 번만 받으면 오프라인에서도 동작.
-                </p>
-                <Button
-                  size="sm"
-                  className="mt-2"
-                  onClick={() => setActiveTab('models')}
-                  aria-label="모델 탭으로 이동해서 다운로드"
-                >
-                  모델 받으러 가기
-                </Button>
-              </div>
-            </div>
-          </section>
-        )}
+        {/* 모델 관리 — 헤더 바로 아래 인라인. 사용자가 받기 액션을 즉시 인지하도록 모델 탭은 분리하지 않음. */}
+        <section className="mb-6">
+          <ModelManager />
+        </section>
 
         {/* Peak-End 카운터 — confirm 직후 storage onChanged로 즉시 반영. 0건일 땐 숨김. */}
         {settings.stats.totalSpansMasked > 0 && (
@@ -213,14 +139,11 @@ export function App() {
 
         <Tabs
           value={activeTab}
-          onValueChange={(v) => setActiveTab(v as 'filter' | 'models' | 'settings')}
+          onValueChange={(v) => setActiveTab(v as 'filter' | 'settings')}
         >
           <TabsList className="w-full">
             <TabsTrigger value="filter" className="flex-1">
               필터
-            </TabsTrigger>
-            <TabsTrigger value="models" className="flex-1">
-              모델
             </TabsTrigger>
             <TabsTrigger value="settings" className="flex-1">
               설정
@@ -244,15 +167,11 @@ export function App() {
             </section>
           </TabsContent>
 
-          <TabsContent value="models" className="space-y-4">
-            <ModelManager />
-          </TabsContent>
-
           <TabsContent value="settings" className="space-y-4">
             <section className="rounded-lg border bg-card p-4">
-              <h2 className="mb-1 text-sm font-bold">화이트리스트 도메인</h2>
+              <h2 className="mb-1 text-sm font-bold">허용 사이트</h2>
               <p className="mb-3 text-xs text-muted-foreground">
-                여기에 등록한 도메인에서는 paste 모달이 뜨지 않습니다.
+                여기에 등록한 사이트에서는 붙여넣기 알림이 뜨지 않아요.
               </p>
               <div className="flex gap-2">
                 <Label htmlFor="wl-input" className="sr-only">
