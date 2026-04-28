@@ -1,0 +1,23 @@
+@import '../shared/design/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Shadow DOM root: 호스트 페이지로부터 독립된 폰트/박스 모델 시작점.
+   Pretendard @font-face는 host script가 document.head에 삽입한다. */
+:host {
+  all: initial;
+  font-family: 'Pretendard Variable', 'Pretendard', system-ui, -apple-system,
+    BlinkMacSystemFont, sans-serif;
+  color: hsl(var(--foreground));
+  /* host 페이지가 :host 외부에서 어떤 스타일을 줘도 shadow 내부는 영향받지 않음 */
+}
+
+/* 모달 전용 root container. tailwind preflight이 활성화되며,
+   포커스 트랩/오버레이는 Radix Dialog가 처리. */
+#oi-react-root {
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}

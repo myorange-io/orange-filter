@@ -1,0 +1,11 @@
+/* Pretendard Variable — Orangeimpact 브랜드 폰트.
+   sidepanel은 일반 URL, content script Shadow DOM은 chrome-extension://...
+   실 src URL은 chrome.runtime.getURL() 또는 빌드 타임 ?url import로 주입된다.
+   여기서는 sidepanel/offscreen용 정적 경로(public/fonts/) 기준. */
+@font-face {
+  font-family: 'Pretendard Variable';
+  font-weight: 45 920;
+  font-style: normal;
+  font-display: swap;
+  src: url('/fonts/PretendardVariable.woff2') format('woff2-variations');
+}

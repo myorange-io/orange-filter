@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Inputs</title>
+<link rel="stylesheet" href="_card.css">
+<style>
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12px;font-weight:700;color:#262626}
+.field input,.field textarea{font-family:var(--font-sans);font-size:14px;color:#262626;padding:10px 12px;border:1px solid #D4D4D4;border-radius:8px;background:#fff;outline:none;transition:border-color var(--dur-fast),box-shadow var(--dur-fast)}
+.field input:focus,.field textarea:focus{border-color:#FF6F1F;box-shadow:0 0 0 3px rgb(255 212 179 / 0.6)}
+.field .helper{font-size:12px;color:#737373}
+.field .err{font-size:12px;color:#C44312}
+.field.error input{border-color:#C44312}
+.field.disabled input{background:#FAFAFA;color:#A3A3A3;border-color:#E5E5E5;cursor:not-allowed}
+</style></head>
+<body>
+<div class="label-row"><b>Form fields</b><span>Default · Focus · Error · Disabled</span></div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px 20px">
+  <div class="field"><label>단체명</label><input placeholder="예) 행복즐거움조이개발센터"><span class="helper">도움말(Helper Text) 제공</span></div>
+  <div class="field"><label>사업명</label><input value="자연 생태계 복원 사업" style="border-color:#FF6F1F;box-shadow:0 0 0 3px rgb(255 212 179 / 0.6)"><span class="helper">Focused state</span></div>
+  <div class="field error"><label>이메일</label><input value="not-an-email"><span class="err">유효한 이메일 형식이 아닙니다.</span></div>
+  <div class="field disabled"><label>제출 마감일</label><input value="2026-05-01" disabled><span class="helper" style="color:#A3A3A3">상호작용 불가능</span></div>
+</div>
+</body></html>

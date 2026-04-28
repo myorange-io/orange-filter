@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>오렌지 필터 — Shadow DOM + 어댑터 테스트</title>
+    <style>
+      /* 의도적으로 거친 호스트 스타일 — Shadow DOM 격리 검증용. */
+      body {
+        margin: 0;
+        font-family: 'Comic Sans MS', cursive;
+        background: #f0e7ff;
+        color: #6a1b9a;
+        padding: 32px;
+      }
+      h1 { font-size: 32px; font-style: italic; text-shadow: 2px 2px 0 #f48fb1; margin-bottom: 8px; }
+      h2 { font-size: 20px; margin-top: 32px; }
+      button {
+        background: #6a1b9a;
+        color: #fff;
+        border: 4px dashed #f48fb1;
+        padding: 12px 24px;
+        font-size: 16px;
+        font-family: inherit;
+        border-radius: 24px;
+        cursor: pointer;
+      }
+      .editor {
+        margin-top: 12px;
+        min-height: 80px;
+        padding: 12px;
+        border: 2px solid #6a1b9a;
+        border-radius: 12px;
+        background: #fff;
+        color: #333;
+        font-family: system-ui;
+        outline: none;
+      }
+      code { background: #fff; padding: 2px 6px; border-radius: 4px; }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>호스트 페이지 (보라색 / Comic Sans)</h1>
+    <p>아래는 Shadow DOM 격리와 ChatGPT 어댑터 동작을 각각 검증합니다.</p>
+
+    <h2>① 직접 모달 트리거 (Shadow DOM 격리 확인)</h2>
+    <p>버튼을 누르면 Pretendard로 렌더된 모달이 떠야 합니다.</p>
+    <button id="trigger-direct" type="button">PII 텍스트로 모달 직접 열기</button>
+
+    <h2>② Tier 1 모델 추론 (offscreen runtime)</h2>
+    <p>버튼을 누르면 Transformers.js로 NER 모델을 로드하고 영문 NER 추론을 1회 돌립니다.
+    첫 실행은 ~30MB 다운로드라 시간이 걸립니다.</p>
+    <button id="run-model" type="button">모델 로드 + 추론 실행</button>
+    <div id="model-result" style="margin-top:12px; padding:12px; background:#fff; border-radius:8px; font-family:system-ui; color:#333; min-height:48px; white-space:pre-wrap;"></div>
+
+    <h2>③ ChatGPT 어댑터 paste 후킹</h2>
+    <p>아래 contenteditable에 PII 텍스트를 paste하면 어댑터가 가로채야 합니다.</p>
+    <div class="row">
+      <button id="copy-sample" type="button">샘플 텍스트 클립보드 복사</button>
+      <span style="font-size:14px;">→ 아래 입력란에 <code>⌘V</code> 또는 <code>Ctrl+V</code></span>
+    </div>
+    <div
+      id="chatgpt-fixture"
+      class="editor"
+      contenteditable="true"
+      role="textbox"
+      data-test="chatgpt-input"
+      aria-label="ChatGPT 입력 시뮬레이션"
+    ></div>
+
+    <p style="margin-top: 24px; font-size: 14px;">
+      샘플 텍스트: <code id="sample"></code>
+    </p>
+    <script type="module" src="./test.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,311 @@
+import { describe, expect, it } from 'vitest';
+import {
+  detectKoreanPII,
+  validateBusinessNumberChecksum,
+  validateForeignerRegistrationChecksum,
+  validateLuhn,
+  validateRRNChecksum,
+} from './regex';
+
+// =============================================================================
+// 체크섬 단위 테스트
+// =============================================================================
+
+describe('validateRRNChecksum', () => {
+  // 사전에 손으로 계산해 검증한 합성 RRN. 실제 발급된 번호 아님.
+  const VALID = ['9505101234567', '0012313456783', '8801011234568'];
+  const INVALID_CHECKSUM = ['9505101234560', '0012313456780', '8801011234560'];
+
+  it.each(VALID)('유효한 RRN 체크섬: %s', (digits) => {
+    expect(validateRRNChecksum(digits)).toBe(true);
+  });
+
+  it.each(INVALID_CHECKSUM)('잘못된 체크섬은 거절: %s', (digits) => {
+    expect(validateRRNChecksum(digits)).toBe(false);
+  });
+
+  it('월 13 등 잘못된 월은 거절', () => {
+    expect(validateRRNChecksum('9513101234567')).toBe(false);
+  });
+
+  it('2월 31일 등 잘못된 일은 거절', () => {
+    expect(validateRRNChecksum('9502311234567')).toBe(false);
+  });
+
+  it('월 0은 거절', () => {
+    expect(validateRRNChecksum('9500101234567')).toBe(false);
+  });
+
+  it('일 0은 거절', () => {
+    expect(validateRRNChecksum('9501001234567')).toBe(false);
+  });
+
+  it('길이 12는 거절', () => {
+    expect(validateRRNChecksum('950510123456')).toBe(false);
+  });
+
+  it('길이 14는 거절', () => {
+    expect(validateRRNChecksum('95051012345670')).toBe(false);
+  });
+
+  it('숫자 외 문자 포함은 거절', () => {
+    expect(validateRRNChecksum('950510a234567')).toBe(false);
+  });
+});
+
+describe('validateForeignerRegistrationChecksum', () => {
+  // 외국인등록번호: RRN과 같은 가중치 + (+2) 보정. 7번째 자리 5-8.
+  const VALID = ['9505105234560', '8803057234562'];
+  const INVALID = [
+    '9505101234567', // 7번째 자리 1 (한국인 RRN 코드)
+    '9505105234567', // 7번째는 5라도 체크섬 잘못
+  ];
+
+  it.each(VALID)('유효한 외국인등록번호: %s', (digits) => {
+    expect(validateForeignerRegistrationChecksum(digits)).toBe(true);
+  });
+
+  it.each(INVALID)('잘못된 케이스 거절: %s', (digits) => {
+    expect(validateForeignerRegistrationChecksum(digits)).toBe(false);
+  });
+
+  it('7번째 자리 9는 거절 (5-8 범위 외)', () => {
+    expect(validateForeignerRegistrationChecksum('9505109234567')).toBe(false);
+  });
+});
+
+describe('validateBusinessNumberChecksum', () => {
+  // 가중치 [1,3,7,1,3,7,1,3,5] + d[8]*5//10
+  const VALID = ['1208612347', '2118615387'];
+  const INVALID = ['1208612340', '2118615388'];
+
+  it.each(VALID)('유효한 사업자번호: %s', (digits) => {
+    expect(validateBusinessNumberChecksum(digits)).toBe(true);
+  });
+
+  it.each(INVALID)('잘못된 사업자번호 체크섬 거절: %s', (digits) => {
+    expect(validateBusinessNumberChecksum(digits)).toBe(false);
+  });
+
+  it('길이 9는 거절', () => {
+    expect(validateBusinessNumberChecksum('120861234')).toBe(false);
+  });
+});
+
+describe('validateLuhn', () => {
+  // 표준 테스트 카드 번호
+  const VALID = [
+    '4242424242424242', // Stripe 테스트 Visa
+    '5555555555554444', // Stripe 테스트 MC
+    '378282246310005', // Amex 15자리
+    '6011111111111117', // Discover
+  ];
+  const INVALID = ['1234567890123456', '4242424242424241', '0000000000000000'];
+
+  it.each(VALID)('유효한 Luhn: %s', (digits) => {
+    expect(validateLuhn(digits)).toBe(true);
+  });
+
+  it.each(INVALID)('잘못된 Luhn 거절: %s', (digits) => {
+    expect(validateLuhn(digits)).toBe(false);
+  });
+
+  it('너무 짧은 입력 거절', () => {
+    expect(validateLuhn('123456789012')).toBe(false);
+  });
+
+  it('숫자 외 문자 포함 거절', () => {
+    expect(validateLuhn('4242a242424242')).toBe(false);
+  });
+});
+
+// =============================================================================
+// detectKoreanPII 통합 테스트
+// =============================================================================
+
+describe('detectKoreanPII', () => {
+  it('빈 문자열에 대해 빈 결과', () => {
+    expect(detectKoreanPII('')).toEqual([]);
+  });
+
+  it('PII 없는 텍스트는 빈 결과', () => {
+    const text = '안녕하세요, 오늘 날씨가 좋네요. 점심은 김치찌개 어떨까요?';
+    // "김치찌개"의 "김"이 성씨 사전에 있어 person_name bare match가 발생할 수 있음.
+    // confidence 0.4 짜리만 떠야 함. (FP는 의도된 동작)
+    const result = detectKoreanPII(text);
+    // RRN/카드/계좌 등 high-confidence PII는 0건이어야 함
+    expect(
+      result.filter((s) => s.confidence >= 0.7),
+    ).toEqual([]);
+  });
+
+  it('주민등록번호 (하이픈 포함) 매칭', () => {
+    const text = '제 주민번호는 950510-1234567 입니다.';
+    const spans = detectKoreanPII(text);
+    const rrn = spans.find((s) => s.category === 'rrn');
+    expect(rrn).toBeDefined();
+    expect(rrn?.text).toBe('950510-1234567');
+    expect(rrn?.source).toBe('regex');
+    expect(rrn?.confidence).toBeGreaterThanOrEqual(0.95);
+  });
+
+  it('주민등록번호 (하이픈 없음) 매칭', () => {
+    const text = '주민번호 9505101234567 등록 완료.';
+    const spans = detectKoreanPII(text);
+    const rrn = spans.find((s) => s.category === 'rrn');
+    expect(rrn?.text).toBe('9505101234567');
+  });
+
+  it('잘못된 체크섬의 RRN 같은 숫자는 매칭 안 됨', () => {
+    const text = '주민번호 950510-1234560 (잘못된 체크섬)';
+    const spans = detectKoreanPII(text);
+    expect(spans.find((s) => s.category === 'rrn')).toBeUndefined();
+  });
+
+  it('휴대폰 다양한 포맷', () => {
+    const cases = [
+      '010-1234-5678',
+      '01012345678',
+      '010 1234 5678',
+      '011-234-5678',
+    ];
+    for (const phone of cases) {
+      const spans = detectKoreanPII(`연락처: ${phone}`);
+      expect(
+        spans.find((s) => s.category === 'mobile'),
+        `매칭 실패: ${phone}`,
+      ).toBeDefined();
+    }
+  });
+
+  it('이메일 매칭', () => {
+    const text = '문의: contact@example.org 또는 test+tag@npo.kr 로 보내주세요.';
+    const spans = detectKoreanPII(text).filter((s) => s.category === 'email');
+    expect(spans).toHaveLength(2);
+    expect(spans[0]?.text).toBe('contact@example.org');
+  });
+
+  it('카드번호 (Luhn 통과) 매칭', () => {
+    const text = '카드 4242-4242-4242-4242 결제 완료.';
+    const spans = detectKoreanPII(text);
+    const card = spans.find((s) => s.category === 'card');
+    expect(card?.text).toBe('4242-4242-4242-4242');
+  });
+
+  it('카드번호 (Luhn 실패) 미매칭', () => {
+    const text = '랜덤 16자리: 1234-5678-9012-3456';
+    const spans = detectKoreanPII(text);
+    expect(spans.find((s) => s.category === 'card')).toBeUndefined();
+  });
+
+  it('OpenAI/Anthropic API key 매칭', () => {
+    const text = 'API key: sk-abc123def456ghi789jkl012mno345 (시크릿)';
+    const spans = detectKoreanPII(text);
+    const cred = spans.find((s) => s.category === 'credential');
+    expect(cred).toBeDefined();
+    expect(cred?.text).toMatch(/^sk-/);
+  });
+
+  it('AWS access key 매칭', () => {
+    const text = 'AKIAIOSFODNN7EXAMPLE 가 유출됐어요.';
+    const spans = detectKoreanPII(text);
+    const cred = spans.find((s) => s.category === 'credential');
+    expect(cred?.text).toBe('AKIAIOSFODNN7EXAMPLE');
+  });
+
+  it('Postgres 커넥션 문자열 매칭', () => {
+    const text = 'DATABASE_URL=postgres://admin:secret123@db.host:5432/app';
+    const spans = detectKoreanPII(text);
+    const cred = spans.find((s) => s.category === 'credential');
+    expect(cred).toBeDefined();
+    expect(cred?.text).toContain('postgres://');
+  });
+
+  it('한국 여권 번호 매칭', () => {
+    const text = '여권 M12345678 분실 신고.';
+    const spans = detectKoreanPII(text);
+    const passport = spans.find((s) => s.category === 'passport');
+    expect(passport?.text).toBe('M12345678');
+  });
+
+  it('미국 SSN 매칭 (정상 prefix)', () => {
+    const text = 'SSN: 123-45-6789';
+    const spans = detectKoreanPII(text);
+    expect(spans.find((s) => s.category === 'ssn_us')?.text).toBe(
+      '123-45-6789',
+    );
+  });
+
+  it('미국 SSN 미매칭 (000/666/9XX prefix)', () => {
+    const cases = ['000-12-3456', '666-12-3456', '900-12-3456'];
+    for (const ssn of cases) {
+      const spans = detectKoreanPII(`SSN: ${ssn}`);
+      expect(
+        spans.find((s) => s.category === 'ssn_us'),
+        `걸리면 안 됨: ${ssn}`,
+      ).toBeUndefined();
+    }
+  });
+
+  it('국제 전화 (+82, +1) 매칭', () => {
+    const text = '한국: +82-10-1234-5678, 미국: +1 415 555 1234';
+    const spans = detectKoreanPII(text).filter(
+      (s) => s.category === 'phone_international',
+    );
+    expect(spans.length).toBeGreaterThanOrEqual(1);
+    expect(spans[0]?.text.startsWith('+')).toBe(true);
+  });
+
+  it('한국 인명 + 직책 → high confidence', () => {
+    const text = '김민수 팀장님께 보고드렸습니다.';
+    const spans = detectKoreanPII(text);
+    const name = spans.find(
+      (s) => s.category === 'person_name' && s.confidence >= 0.8,
+    );
+    expect(name?.text).toBe('김민수');
+  });
+
+  it('한국 인명 (bare) → 낮은 confidence (FP 위험 인지)', () => {
+    const text = '박지성';
+    const spans = detectKoreanPII(text);
+    const name = spans.find((s) => s.category === 'person_name');
+    expect(name).toBeDefined();
+    expect(name?.confidence).toBeLessThan(0.7);
+  });
+
+  it('계좌번호와 카드번호가 충돌하면 카드 우선 (Luhn 통과 시)', () => {
+    // 4242-4242-4242-4242는 16자리 + Luhn 통과 → card로
+    const text = '계좌인지 카드인지: 4242-4242-4242-4242';
+    const spans = detectKoreanPII(text);
+    expect(spans.find((s) => s.category === 'card')).toBeDefined();
+    expect(spans.find((s) => s.category === 'account')).toBeUndefined();
+  });
+
+  it('스팬은 텍스트 위치 정렬 순서로 반환', () => {
+    const text = '연락처 010-1234-5678 이메일 a@b.com 카드 4242424242424242';
+    const spans = detectKoreanPII(text);
+    for (let i = 1; i < spans.length; i++) {
+      expect(spans[i]!.start).toBeGreaterThanOrEqual(spans[i - 1]!.end);
+    }
+  });
+
+  it('스팬의 start/end가 원본 텍스트의 정확한 위치', () => {
+    const text = '문의: contact@example.org 입니다.';
+    const span = detectKoreanPII(text).find((s) => s.category === 'email')!;
+    expect(text.slice(span.start, span.end)).toBe('contact@example.org');
+  });
+
+  it('여러 PII가 한 텍스트에 — 모두 잡힘', () => {
+    const text = `
+      후원자 명단:
+      홍길동 부장 (010-1111-2222) 950510-1234567
+      이순신 (admin@example.org), 카드 5555-5555-5555-4444
+    `;
+    const spans = detectKoreanPII(text);
+    const categories = new Set(spans.map((s) => s.category));
+    expect(categories.has('rrn')).toBe(true);
+    expect(categories.has('mobile')).toBe(true);
+    expect(categories.has('email')).toBe(true);
+    expect(categories.has('card')).toBe(true);
+  });
+});

@@ -1,0 +1,405 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Buttons</title>
+<link rel="stylesheet" href="_card.css">
+<style>
+/* =============================================================================
+   Buttons — spec from button-system-rules.md
+   4 types × 3 sizes × up to 4 states · Pretendard Medium · radius 8
+   Layout: compact single-column, designed to fit a ~680–760px review pane.
+   ============================================================================= */
+
+:root {
+  --orange-100: #FFF2E7;
+  --orange-700: #FF6F1F;
+  --orange-800: #FF5F1A;
+  --orange-900: #E65317;
+  --gray-50:  #FAFAFA;
+  --gray-100: #F0F0F0;
+  --gray-200: #E5E5E5;
+  --gray-300: #D4D4D4;
+  --gray-400: #A3A3A3;
+  --gray-500: #737373;
+  --gray-700: #404040;
+  --gray-900: #0A0A0A;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: #fff;
+  padding: 32px 28px 60px;
+  color: var(--gray-700);
+  font-family: var(--font-sans);
+}
+
+/* ---- Base button ---- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  width: 240px; box-sizing: border-box;
+  border-radius: 8px; border: 1px solid transparent; background: transparent;
+  font-family: inherit; font-weight: 500; text-align: center; white-space: nowrap;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+.btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255,111,31,0.25); }
+
+.btn.size-lg { height: 50px; padding: 12px 28px; font-size: 16px; line-height: 26px; }
+.btn.size-md { height: 42px; padding: 10px 28px; font-size: 14px; line-height: 22px; }
+.btn.size-sm { height: 34px; padding:  8px 20px; font-size: 12px; line-height: 18px; }
+
+/* Solid/Primary */
+.btn.solid             { background: var(--orange-700); color: var(--gray-50); }
+.btn.solid.is-hovered  { background: var(--orange-900); }
+.btn.solid.is-default  { background: var(--gray-300); }
+.btn.solid.is-disabled { background: var(--gray-200); color: var(--gray-400); cursor: not-allowed; }
+
+/* Outlined/Primary */
+.btn.outlined-p             { background: var(--gray-50); border-color: var(--orange-700); color: var(--orange-800); }
+.btn.outlined-p.is-hovered  { background: var(--orange-100); }
+.btn.outlined-p.is-disabled { background: var(--gray-100); border-color: var(--gray-200); color: var(--gray-400); cursor: not-allowed; }
+.btn.outlined-p.size-sm     { height: 38px; padding: 10px 16px; }
+
+/* Outlined/Assistive */
+.btn.outlined-a             { background: var(--gray-50); border-color: var(--gray-300); color: var(--gray-700); }
+.btn.outlined-a.is-hovered  { border-color: var(--gray-700); }
+.btn.outlined-a.is-default  { color: var(--gray-500); }
+.btn.outlined-a.is-disabled { border-color: var(--gray-200); color: var(--gray-400); cursor: not-allowed; }
+.btn.outlined-a.size-sm     { padding: 8px 16px; }
+
+/* Text/Primary */
+.btn.text-p {
+  width: auto; padding: 4px 8px; gap: 2px;
+  background: transparent; color: var(--gray-400);
+  font-size: 12px; line-height: 18px; border: none;
+}
+.btn.text-p.is-hovered { background: var(--gray-100); color: var(--gray-700); }
+
+/* Icon */
+.icon { display: inline-block; flex: none; background: currentColor;
+        -webkit-mask: center/contain no-repeat var(--i); mask: center/contain no-repeat var(--i);
+        transform: rotate(180deg); }
+.btn.solid .icon       { width: 20px; height: 20px; }
+.btn.outlined-p.has-icon { gap: 8px; }
+.btn.outlined-p .icon  { width: 24px; height: 24px; }
+.icon-dl { --i: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'><path d='M12 4v12m0 0l-5-5m5 5l5-5M5 20h14'/></svg>"); }
+
+/* =============================================================================
+   Page layout
+   ============================================================================= */
+.hero       { margin-bottom: 32px; }
+.hero h1    { font-size: 32px; font-weight: 700; letter-spacing: -0.01em; color: var(--gray-900); margin: 0 0 10px; }
+.hero .lede { font-size: 13px; line-height: 1.7; color: var(--gray-500); max-width: 620px; }
+
+.section      { margin-top: 36px; }
+.section-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 4px; gap: 12px; }
+.section-head h2 { font-size: 18px; font-weight: 700; color: var(--gray-900); margin: 0; letter-spacing: -0.005em; }
+.section-head .num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 6px;
+  background: var(--orange-700); color: #fff; font-size: 12px; font-weight: 700;
+  margin-right: 10px; vertical-align: 1px;
+}
+.section-head h2 .num { margin-right: 8px; }
+.section > .rule { font-size: 12.5px; color: var(--gray-500); line-height: 1.6; margin: 6px 0 16px; }
+.section > .rule strong { color: var(--gray-700); font-weight: 600; }
+
+.card {
+  border: 1px solid var(--gray-200); border-radius: 12px;
+  background: #fff; overflow: hidden;
+}
+.card-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; border-bottom: 1px solid var(--gray-200);
+  background: #FAFAFA; font-size: 11px; color: var(--gray-500);
+  letter-spacing: 0.04em; text-transform: uppercase;
+}
+.card-meta .k { font-weight: 600; color: var(--gray-700); letter-spacing: 0; text-transform: none; font-size: 12px; }
+
+/* Rows: size label → 4 state cells (compact 2+2 or 1+3 layouts on narrow) */
+.rows { padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 22px; }
+.size-row { display: flex; flex-direction: column; gap: 10px; }
+.size-row .label {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 11px; color: var(--gray-500);
+  font-family: "SF Mono", ui-monospace, Menlo, monospace;
+}
+.size-row .label .pill {
+  background: rgba(112,115,124,0.12); color: #17171A;
+  padding: 2px 8px; border-radius: 4px; font-weight: 500;
+}
+.size-row .label .dims { color: var(--gray-400); }
+
+.state-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 10px 14px; align-items: center;
+}
+.state-grid .cell { display: flex; flex-direction: column; gap: 6px; }
+.state-grid .cell .tag {
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--gray-500); font-weight: 600;
+}
+.state-grid .cell.na {
+  font-size: 11px; color: var(--gray-400); font-style: italic;
+  align-self: center; padding: 16px 0;
+}
+.state-grid .cell .btn { width: 100%; max-width: 280px; }
+
+/* Icon-variant row */
+.variant-row {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px dashed var(--gray-200);
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+}
+.variant-row .tag { font-size: 10px; color: var(--gray-500); letter-spacing: 0.06em; text-transform: uppercase; font-weight: 600; min-width: 110px; }
+
+/* Text-button card — simpler */
+.text-card .rows { padding: 20px; }
+.text-card .state-grid { grid-template-columns: 1fr 1fr; }
+.text-card .btn { width: auto !important; }
+
+/* Support matrix */
+.support {
+  width: 100%; border-collapse: collapse; font-size: 12.5px;
+  border: 1px solid var(--gray-200); border-radius: 10px; overflow: hidden;
+}
+.support thead { background: #FAFAFA; }
+.support th, .support td {
+  padding: 10px 12px; text-align: center;
+  border-bottom: 1px solid var(--gray-200);
+}
+.support tbody tr:last-child td { border-bottom: none; }
+.support th { font-weight: 600; color: var(--gray-500); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+.support td:first-child, .support th:first-child { text-align: left; color: var(--gray-900); font-weight: 600; }
+.support .y { color: var(--orange-700); font-weight: 700; font-size: 14px; }
+.support .n { color: var(--gray-300); }
+.support .note { color: var(--gray-500); font-size: 11px; }
+
+/* Tokens legend */
+.tokens {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px; margin-top: 18px;
+}
+.token {
+  border: 1px solid var(--gray-200); border-radius: 8px;
+  padding: 10px 12px; display: flex; gap: 10px; align-items: center;
+  background: #fff;
+}
+.token .sw { width: 28px; height: 28px; border-radius: 6px; flex: none; border: 1px solid rgba(0,0,0,0.05); }
+.token .meta { display: flex; flex-direction: column; gap: 2px; font-size: 11px; }
+.token .meta .name { color: var(--gray-900); font-weight: 600; font-size: 12px; }
+.token .meta .hex  { color: var(--gray-500); font-family: "SF Mono", ui-monospace, Menlo, monospace; }
+</style></head>
+<body>
+
+<div class="hero">
+  <h1>Button</h1>
+  <p class="lede">
+    모든 버튼은 가운데 정렬, Pretendard Medium, radius 8px 기준입니다.
+    Height는 <code>padding × 2 + line-height</code>로 계산되고 Width는 가변입니다.
+    사이즈별 Body Medium 타입(16/26 · 14/22 · 12/18)을 사용합니다.
+  </p>
+</div>
+
+<!-- ============ 1. Solid / Primary ============ -->
+<section class="section">
+  <div class="section-head"><h2><span class="num">1</span>Solid / Primary</h2></div>
+  <p class="rule">최우선 CTA. <strong>Normal · Hovered · Default · Disabled</strong> 전부 지원. Large 한정 아이콘 variant 제공.</p>
+
+  <div class="card">
+    <div class="card-meta"><span class="k">Solid / Primary</span><span>L 50 · M 42 · S 34</span></div>
+    <div class="rows">
+
+      <div class="size-row">
+        <div class="label"><span class="pill">large</span><span class="dims">50px · 16/26</span></div>
+        <div class="state-grid">
+          <div class="cell"><span class="tag">Normal</span><button class="btn solid size-lg">문의하기</button></div>
+          <div class="cell"><span class="tag">Hovered</span><button class="btn solid size-lg is-hovered">문의하기</button></div>
+          <div class="cell"><span class="tag">Default</span><button class="btn solid size-lg is-default">문의하기</button></div>
+          <div class="cell"><span class="tag">Disabled</span><button class="btn solid size-lg is-disabled" disabled>문의하기</button></div>
+        </div>
+      </div>
+
+      <div class="size-row">
+        <div class="label"><span class="pill">medium</span><span class="dims">42px · 14/22</span></div>
+        <div class="state-grid">
+          <div class="cell"><span class="tag">Normal</span><button class="btn solid size-md">문의하기</button></div>
+          <div class="cell"><span class="tag">Hovered</span><button class="btn solid size-md is-hovered">문의하기</button></div>
+          <div class="cell"><span class="tag">Default</span><button class="btn solid size-md is-default">문의하기</button></div>
+          <div class="cell"><span class="tag">Disabled</span><button class="btn solid size-md is-disabled" disabled>문의하기</button></div>
+        </div>
+      </div>
+
+      <div class="size-row">
+        <div class="label"><span class="pill">small</span><span class="dims">34px · 12/18</span></div>
+        <div class="state-grid">
+          <div class="cell"><span class="tag">Normal</span><button class="btn solid size-sm">문의하기</button></div>
+          <div class="cell"><span class="tag">Hovered</span><button class="btn solid size-sm is-hovered">문의하기</button></div>
+          <div class="cell"><span class="tag">Default</span><button class="btn solid size-sm is-default">문의하기</button></div>
+          <div class="cell"><span class="tag">Disabled</span><button class="btn solid size-sm is-disabled" disabled>문의하기</button></div>
+        </div>
+      </div>
+
+      <div class="variant-row">
+        <span class="tag">Icon variant · Large</span>
+        <button class="btn solid size-lg"><span class="icon icon-dl"></span>문의하기</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. Outlined / Primary ============ -->
+<section class="section">
+  <div class="section-head"><h2><span class="num">2</span>Outlined / Primary</h2></div>
+  <p class="rule">주요 보조 액션. <strong>Default 상태 없음.</strong> Small은 패딩 예외(10/16 → 높이 38px). Large 한정 아이콘 variant 제공.</p>
+
+  <div class="card">
+    <div class="card-meta"><span class="k">Outlined / Primary</span><span>L 50 · M 42 · S 38*</span></div>
+    <div class="rows">
+
+      <div class="size-row">
+        <div class="label"><span class="pill">large</span><span class="dims">50px · 16/26</span></div>
+        <div class="state-grid">
+          <div class="cell"><span class="tag">Normal</span><button class="btn outlined-p size-lg">문의하기</button></div>
+          <div class="cell"><span class="tag">Hovered</span><button class="btn outlined-p size-lg is-hovered">문의하기</button></div>
+          <div class="cell na">— Default not supported —</div>
+          <div class="cell"><span class="tag">Disabled</span><button class="btn outlined-p size-lg is-disabled" disabled>문의하기</button></div>
+        </div>
+      </div>
+
+      <div class="size-row">
+        <div class="label"><span class="pill">medium</span><span class="dims">42px · 14/22</span></div>
+        <div class="state-grid">
+          <div class="cell"><span class="tag">Normal</span><button class="btn outlined-p size-md">문의하기</button></div>
+          <div class="cell"><span class="tag">Hovered</span><button class="btn outlined-p size-md is-hovered">문의하기</button></div>
+          <div class="cell na">— Default not supported —</div>
+          <div class="cell"><span class="tag">Disabled</span><button class="btn outlined-p size-md is-disabled" disabled>문의하기</button></div>
+        </div>
+      </div>
+
+      <div class="size-row">
+        <div class="label"><span class="pill">small*</span><span class="dims">38px · 12/18 · pad 10/16</span></div>
+        <div class="state-grid">
+          <div class="cell"><span class="tag">Normal</span><button class="btn outlined-p size-sm">문의하기</button></div>
+          <div class="cell"><span class="tag">Hovered</span><button class="btn outlined-p size-sm is-hovered">문의하기</button></div>
+          <div class="cell na">— Default not supported —</div>
+          <div class="cell"><span class="tag">Disabled</span><button class="btn outlined-p size-sm is-disabled" disabled>문의하기</button></div>
+        </div>
+      </div>
+
+      <div class="variant-row">
+        <span class="tag">Icon variant · Large</span>
+        <button class="btn outlined-p size-lg has-icon"><span class="icon icon-dl"></span>문의하기</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. Outlined / Assistive ============ -->
+<section class="section">
+  <div class="section-head"><h2><span class="num">3</span>Outlined / Assistive</h2></div>
+  <p class="rule">중립적 보조 액션. Hovered 시 배경은 그대로, <strong>border만 진해집니다</strong>(#D4D4D4 → #404040). 아이콘 variant 미지원.</p>
+
+  <div class="card">
+    <div class="card-meta"><span class="k">Outlined / Assistive</span><span>L 50 · M 42 · S 34</span></div>
+    <div class="rows">
+
+      <div class="size-row">
+        <div class="label"><span class="pill">large</span><span class="dims">50px · 16/26</span></div>
+        <div class="state-grid">
+          <div class="cell"><span class="tag">Normal</span><button class="btn outlined-a size-lg">문의하기</button></div>
+          <div class="cell"><span class="tag">Hovered</span><button class="btn outlined-a size-lg is-hovered">문의하기</button></div>
+          <div class="cell"><span class="tag">Default</span><button class="btn outlined-a size-lg is-default">문의하기</button></div>
+          <div class="cell"><span class="tag">Disabled</span><button class="btn outlined-a size-lg is-disabled" disabled>문의하기</button></div>
+        </div>
+      </div>
+
+      <div class="size-row">
+        <div class="label"><span class="pill">medium</span><span class="dims">42px · 14/22</span></div>
+        <div class="state-grid">
+          <div class="cell"><span class="tag">Normal</span><button class="btn outlined-a size-md">문의하기</button></div>
+          <div class="cell"><span class="tag">Hovered</span><button class="btn outlined-a size-md is-hovered">문의하기</button></div>
+          <div class="cell"><span class="tag">Default</span><button class="btn outlined-a size-md is-default">문의하기</button></div>
+          <div class="cell"><span class="tag">Disabled</span><button class="btn outlined-a size-md is-disabled" disabled>문의하기</button></div>
+        </div>
+      </div>
+
+      <div class="size-row">
+        <div class="label"><span class="pill">small</span><span class="dims">34px · 12/18</span></div>
+        <div class="state-grid">
+          <div class="cell"><span class="tag">Normal</span><button class="btn outlined-a size-sm">문의하기</button></div>
+          <div class="cell"><span class="tag">Hovered</span><button class="btn outlined-a size-sm is-hovered">문의하기</button></div>
+          <div class="cell"><span class="tag">Default</span><button class="btn outlined-a size-sm is-default">문의하기</button></div>
+          <div class="cell"><span class="tag">Disabled</span><button class="btn outlined-a size-sm is-disabled" disabled>문의하기</button></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. Text / Primary ============ -->
+<section class="section">
+  <div class="section-head"><h2><span class="num">4</span>Text / Primary</h2></div>
+  <p class="rule">인라인 소형 액션. 필드·테이블 옆 "+추가" 등에 사용. <strong>Small 한 종류</strong>, Default / Hover 두 상태만 지원.</p>
+
+  <div class="card text-card">
+    <div class="card-meta"><span class="k">Text / Primary</span><span>12/18 · pad 4/8</span></div>
+    <div class="rows">
+      <div class="state-grid">
+        <div class="cell"><span class="tag">Default</span><button class="btn text-p">+추가</button></div>
+        <div class="cell"><span class="tag">Hover</span><button class="btn text-p is-hovered">+추가</button></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ Support matrix ============ -->
+<section class="section">
+  <div class="section-head"><h2><span class="num">✓</span>Support matrix</h2></div>
+  <p class="rule">타입별 지원되는 사이즈·상태·아이콘 조합.</p>
+  <table class="support">
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>L</th><th>M</th><th>S</th>
+        <th>Normal</th><th>Hover</th><th>Default</th><th>Disabled</th>
+        <th>Icon</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Solid / Primary</td>
+        <td class="y">●</td><td class="y">●</td><td class="y">●</td>
+        <td class="y">●</td><td class="y">●</td><td class="y">●</td><td class="y">●</td>
+        <td class="note">L only</td></tr>
+      <tr><td>Outlined / Primary</td>
+        <td class="y">●</td><td class="y">●</td><td class="y">●*</td>
+        <td class="y">●</td><td class="y">●</td><td class="n">—</td><td class="y">●</td>
+        <td class="note">L only</td></tr>
+      <tr><td>Outlined / Assistive</td>
+        <td class="y">●</td><td class="y">●</td><td class="y">●</td>
+        <td class="y">●</td><td class="y">●</td><td class="y">●</td><td class="y">●</td>
+        <td class="n">—</td></tr>
+      <tr><td>Text / Primary</td>
+        <td class="n">—</td><td class="n">—</td><td class="y">●</td>
+        <td class="n">—</td><td class="y">●</td><td class="y">●</td><td class="n">—</td>
+        <td class="n">—</td></tr>
+    </tbody>
+  </table>
+  <p class="rule" style="margin-top:10px"><strong>*</strong> Outlined / Primary Small은 높이 예외 38px (패딩 10/16)</p>
+</section>
+
+<!-- ============ Tokens ============ -->
+<section class="section">
+  <div class="section-head"><h2><span class="num">▩</span>Color tokens</h2></div>
+  <p class="rule">버튼 시스템에서 참조하는 8개 원시 색상.</p>
+  <div class="tokens">
+    <div class="token"><div class="sw" style="background:#FF6F1F"></div><div class="meta"><span class="name">Orange/700</span><span class="hex">#FF6F1F · Solid bg</span></div></div>
+    <div class="token"><div class="sw" style="background:#FF5F1A"></div><div class="meta"><span class="name">Orange/800</span><span class="hex">#FF5F1A · Outlined text</span></div></div>
+    <div class="token"><div class="sw" style="background:#E65317"></div><div class="meta"><span class="name">Orange/900</span><span class="hex">#E65317 · Solid hover</span></div></div>
+    <div class="token"><div class="sw" style="background:#FFF2E7"></div><div class="meta"><span class="name">Orange/100</span><span class="hex">#FFF2E7 · Outlined hover</span></div></div>
+    <div class="token"><div class="sw" style="background:#FAFAFA"></div><div class="meta"><span class="name">Gray/50</span><span class="hex">#FAFAFA · Text inverse · bg</span></div></div>
+    <div class="token"><div class="sw" style="background:#D4D4D4"></div><div class="meta"><span class="name">Gray/300</span><span class="hex">#D4D4D4 · Neutral border</span></div></div>
+    <div class="token"><div class="sw" style="background:#A3A3A3"></div><div class="meta"><span class="name">Gray/400</span><span class="hex">#A3A3A3 · Disabled text</span></div></div>
+    <div class="token"><div class="sw" style="background:#404040"></div><div class="meta"><span class="name">Gray/700</span><span class="hex">#404040 · Assistive text</span></div></div>
+  </div>
+</section>
+
+</body></html>
