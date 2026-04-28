@@ -136,7 +136,7 @@
 1. **Closed Shadow DOM**: 호스트 페이지 격리 ↔ Radix a11y 경고. 보안 우선.
 2. **Self-hosted ORT WASM**: 외부 CDN 의존 제거. CSP 호환.
 3. **No telemetry**: 디바이스 밖 송신 0건. v1.0 핵심 약속.
-4. **MV3 strict CSP**: `script-src 'self'` — `eval`, 외부 스크립트 차단.
+4. **MV3 strict CSP**: `script-src 'self' 'wasm-unsafe-eval'; object-src 'self'`. 일반 `eval`/외부 스크립트는 차단, WASM 컴파일만 허용 (ORT + Tesseract 필요). manifest 보안 회귀 테스트로 lock.
 5. **Optional host_permissions** (TODO v1.1): 사용자가 사이트별로 명시 허가하도록 변경 검토 (현재는 manifest에 5개 LLM 도메인 고정).
 6. **Minimum permissions**: `storage`, `sidePanel`, `offscreen`만. `tabs`, `webRequest`, `cookies` 등 high-risk 권한 미요구.
 

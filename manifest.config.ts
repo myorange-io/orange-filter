@@ -48,6 +48,12 @@ export default defineManifest({
   ],
   host_permissions: LLM_HOSTS,
   permissions: ['storage', 'sidePanel', 'offscreen'],
+  // MV3 WASM 컴파일 허용. ORT WebAssembly(transformers.js) + Tesseract WASM이 필요.
+  // 'wasm-unsafe-eval'은 MV3에서 유일하게 허용되는 WASM 컴파일 옵션 (strict CSP 호환).
+  content_security_policy: {
+    extension_pages:
+      "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+  },
   web_accessible_resources: [
     {
       resources: [
