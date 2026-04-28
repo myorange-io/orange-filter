@@ -23,7 +23,8 @@ export async function parsePdf(file: File): Promise<ParseResult> {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
     type TextItem = { str: string };
-    const text = (content.items as TextItem[]).map((it) => it.str).join(' ');
+    // pdfjs가 종종 한글을 NFD(자모 분해)로 추출 → 정규식 [가-힣] 미스. NFC 정규화.
+    const text = (content.items as TextItem[]).map((it) => it.str).join(' ').normalize('NFC');
     if (text.length > 0) {
       segments.push({ id: pageId(i), text });
       pageTexts.push(text);

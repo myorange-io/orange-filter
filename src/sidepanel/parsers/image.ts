@@ -57,7 +57,8 @@ async function getWorker(lang: string = DEFAULT_LANG): Promise<{
 export async function parseImage(file: File): Promise<ParseResult> {
   const worker = await getWorker();
   const result = await worker.recognize(file);
-  const text = result.data.text ?? '';
+  // Tesseract 한국어 결과가 종종 NFD(자모 분해)로 추출 → 정규식 [가-힣] 미스. NFC 정규화.
+  const text = (result.data.text ?? '').normalize('NFC');
   return {
     segments: [{ id: 'ocr', text }],
     combinedText: text,

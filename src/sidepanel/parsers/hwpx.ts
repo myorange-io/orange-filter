@@ -42,7 +42,7 @@ export async function parseHwpx(file: File): Promise<ParseResult> {
     while ((m = TEXT_NODE_RE.exec(xml)) !== null) {
       const inner = m[2] ?? '';
       if (inner.length === 0) continue;
-      const decoded = decodeXml(inner);
+      const decoded = decodeXml(inner).normalize('NFC');
       segments.push({ id: segId(path, i), text: decoded });
       lines.push(decoded);
       i++;

@@ -64,7 +64,7 @@ export async function parsePptx(file: File): Promise<ParseResult> {
     const nodes = textNodes(xml);
     nodes.forEach((n, i) => {
       if (n.text.length === 0) return;
-      const decoded = decodeXmlText(n.text);
+      const decoded = decodeXmlText(n.text).normalize('NFC');
       segments.push({ id: segId(path, i), text: decoded });
       lines.push(decoded);
     });

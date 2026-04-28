@@ -42,7 +42,7 @@ export async function parseDocx(file: File): Promise<ParseResult> {
   if (!xml) throw new Error('DOCX: word/document.xml 없음');
   const nodes = textNodes(xml);
   const segments: Segment[] = nodes
-    .map((n, i) => ({ id: `t${i}`, text: decodeXmlText(n.text) }))
+    .map((n, i) => ({ id: `t${i}`, text: decodeXmlText(n.text).normalize('NFC') }))
     .filter((s) => s.text.length > 0);
   return {
     segments,

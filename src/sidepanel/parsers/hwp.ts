@@ -49,7 +49,8 @@ function walk(
   segments: Segment[],
   lines: string[],
 ): void {
-  const text = extractParaText(para).trim();
+  // hwp.js가 일부 텍스트를 NFD(자모 분해)로 추출 → 정규식 [가-힣] 미스. NFC 정규화.
+  const text = extractParaText(para).trim().normalize('NFC');
   if (text.length > 0) {
     segments.push({ id: prefix, text });
     lines.push(text);
