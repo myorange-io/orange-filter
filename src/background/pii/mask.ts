@@ -149,7 +149,7 @@ const FAKE_BY_CATEGORY: Record<PIICategory, string> = {
   business_number: '000-00-00000',
   corporate_registration: '000000-0000000',
   person_name: '홍길동',
-  address: '서울특별시 ○○구 ○○동',
+  address: '부산광역시 ○○구 ○○동',
   organization: '○○단체',
   url: 'https://example.com',
   date: '0000-00-00',
