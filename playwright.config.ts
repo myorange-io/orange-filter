@@ -30,10 +30,7 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 60_000,
-  },
+  // webServer는 의도적으로 비워둠 — 외부에서 `npm run dev`를 미리 띄우거나
+  // CI에서 별도 service로 5173을 제공한다고 가정. e2e 실행 시 항상 manual.
+  // (config의 reuseExistingServer가 vite의 port 충돌을 graceful 처리 못함.)
 });
