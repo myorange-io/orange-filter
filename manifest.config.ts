@@ -41,7 +41,13 @@ export default defineManifest({
   permissions: ['storage', 'sidePanel', 'offscreen'],
   web_accessible_resources: [
     {
-      resources: ['fonts/*', 'ort/*', 'src/offscreen/*', 'src/test-page/*'],
+      resources: [
+        'fonts/*',
+        'ort/*',
+        'tesseract/*',
+        'src/offscreen/*',
+        'src/test-page/*',
+      ],
       matches: ['<all_urls>'],
     },
   ],

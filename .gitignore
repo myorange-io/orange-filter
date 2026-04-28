@@ -37,3 +37,7 @@ coverage
 
 # 실제 NPO 양식 픽스처 (개인정보 노출 가능성 — 로컬 전용)
 sample/
+
+# Tesseract.js self-host 자원 — scripts/setup-tesseract.mjs가 자동 생성/다운로드
+# (worker.min.js + tesseract-core* + kor/eng.traineddata, ~17MB)
+public/tesseract/

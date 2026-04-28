@@ -3,15 +3,10 @@
 // 출력은 .txt fallback (이미지 자체 마스킹은 v1에서 미지원). HWP와 동일 패턴:
 // use-file-queue.ts의 shouldFallbackToTxt가 .png/.jpg/.jpeg를 .txt로 확장자 변환.
 //
-// 자원 (Tesseract.js v5+ 기본):
-//   - tesseract-core(.wasm + .js): ~3MB
-//   - kor.traineddata: ~12MB
-//   - eng.traineddata: ~2MB
-//   첫 실행 시 자동 다운로드 + IndexedDB 캐시 (이후 오프라인).
-//
-// MV3 self-host (TODO v1.1): Chrome 확장 strict CSP가 외부 cdn 차단할 가능성이
-// 있어 production 빌드에서는 public/tesseract/로 worker/wasm/lang 자체 호스팅 필요.
-// 현재는 dev preview에서 동작 검증 우선.
+// Self-host (MV3 strict CSP 대응):
+//   scripts/setup-tesseract.mjs가 worker.min.js + tesseract-core*.wasm/js +
+//   kor/eng.traineddata를 public/tesseract/로 복사·다운로드. vite build 시
+//   dist/tesseract/로 자동 포함되며 chrome.runtime.getURL로 접근.
 
 import type { ExportInput, ParseResult } from './types';
 
@@ -20,6 +15,18 @@ let cachedLang: string | null = null;
 
 const DEFAULT_LANG = 'kor+eng';
 
+/**
+ * 자체 호스팅된 tesseract 자원의 base URL.
+ * - 확장 환경: chrome-extension://EXT_ID/tesseract/
+ * - vite dev: /tesseract/ (public 폴더 자동 서빙)
+ */
+function tesseractBaseUrl(): string {
+  if (typeof chrome !== 'undefined' && chrome.runtime?.getURL) {
+    return chrome.runtime.getURL('tesseract/');
+  }
+  return '/tesseract/';
+}
+
 async function getWorker(lang: string = DEFAULT_LANG): Promise<{
   recognize: (img: Blob | File) => Promise<{ data: { text: string } }>;
 }> {
@@ -27,9 +34,12 @@ async function getWorker(lang: string = DEFAULT_LANG): Promise<{
     return cachedWorker as never;
   }
   const Tesseract = await import('tesseract.js');
-  // createWorker는 v5+ 시그니처: (langs, oem, options).
-  // logger는 진행률 콜백 — 현재는 console로만, S15+에서 use-file-queue progress와 통합.
+  const base = tesseractBaseUrl();
   const worker = await Tesseract.createWorker(lang, 1, {
+    workerPath: `${base}worker.min.js`,
+    corePath: base, // 디렉터리 — Tesseract가 SIMD/LSTM 변종을 자동 선택
+    langPath: base, // {lang}.traineddata 파일 동일 디렉터리
+    cacheMethod: 'write', // IndexedDB에 lang 캐시 (재실행 시 fetch 생략)
     logger: (m) => {
       if (m.status === 'recognizing text' || m.status === 'loading language traineddata') {
         console.debug('[npo-privacy ocr]', m.status, Math.round((m.progress ?? 0) * 100) + '%');

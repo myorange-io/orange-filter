@@ -5,11 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "predev": "node scripts/setup-tesseract.mjs",
     "build": "tsc --noEmit && vite build",
+    "prebuild": "node scripts/setup-tesseract.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "setup:tesseract": "node scripts/setup-tesseract.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
