@@ -204,10 +204,27 @@ export function getMaskExample(category: PIICategory, mode: MaskMode): string {
 // 단일 스팬 마스킹
 // =============================================================================
 
+/**
+ * 부분 가림: 사람 이름 첫·끝 글자만 노출, 가운데는 'O'.
+ * len 1 → 그대로, len 2 → 끝만 'O', len ≥ 3 → 양 끝만 노출.
+ * person_name 외 카테고리는 shape으로 fallback.
+ */
+function maskPartial(text: string, category: PIICategory): string {
+  if (category !== 'person_name') return maskShape(text, category);
+  const chars = [...text];
+  const len = chars.length;
+  if (len <= 1) return text;
+  return chars
+    .map((ch, i) => (i === 0 || (len > 2 && i === len - 1) ? ch : 'O'))
+    .join('');
+}
+
 export function applyMask(span: PIISpan, mode: MaskMode): string {
   switch (mode) {
     case 'shape':
       return maskShape(span.text, span.category);
+    case 'partial':
+      return maskPartial(span.text, span.category);
     case 'tag':
       return TAG_BY_CATEGORY[span.category];
     case 'fake':

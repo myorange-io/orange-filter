@@ -17,7 +17,7 @@ export type PIICategory =
   | 'credential'
   | 'organization';
 
-export type MaskMode = 'shape' | 'tag' | 'fake' | 'remove';
+export type MaskMode = 'shape' | 'tag' | 'fake' | 'remove' | 'partial';
 
 export type DetectionSource = 'regex' | 'model' | 'korean_ner';
 
