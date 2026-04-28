@@ -16,7 +16,7 @@ export default defineManifest({
   name: '오렌지 필터',
   description:
     'LLM(ChatGPT·Gemini·Claude·오렌지임팩트)에 붙여넣거나 파일을 올리기 전에, 개인정보를 이 PC 안에서 자동으로 가립니다.',
-  version: '1.0.0',
+  version: '1.1.0',
   default_locale: 'ko',
   icons: {
     16: 'icons/icon-16.png',
