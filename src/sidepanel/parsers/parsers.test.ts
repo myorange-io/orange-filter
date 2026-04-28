@@ -10,6 +10,7 @@ import { parseXlsx, exportXlsx } from './xlsx';
 import { parseDocx, exportDocx } from './docx';
 import { parsePptx, exportPptx } from './pptx';
 import { parseHwp } from './hwp';
+import { parseHwpx } from './hwpx';
 
 /**
  * sample/ 디렉터리 위치 결정. 워크트리(`.claude/worktrees/<id>`)에서 실행 시 cwd가
@@ -174,6 +175,33 @@ describe('XLSX parser (sample 픽스처)', () => {
   });
 });
 
+describe('table-walker (hwpx section 표)', () => {
+  test('hwpx 표 안의 헤더 인식', async () => {
+    const JSZip = (await import('jszip')).default;
+    const zip = new JSZip();
+    // 최소 HWPX 구조 — Contents/section0.xml + 표.
+    const sectionXml =
+      '<?xml version="1.0"?><hp:sec xmlns:hp="http://www.hancom.co.kr/hwpml/2011/section">' +
+      '<hp:tbl>' +
+        '<hp:tr><hp:tc><hp:p><hp:run><hp:t>성명</hp:t></hp:run></hp:p></hp:tc>' +
+        '<hp:tc><hp:p><hp:run><hp:t>연락처</hp:t></hp:run></hp:p></hp:tc></hp:tr>' +
+        '<hp:tr><hp:tc><hp:p><hp:run><hp:t>홍길동</hp:t></hp:run></hp:p></hp:tc>' +
+        '<hp:tc><hp:p><hp:run><hp:t>010-1234-5678</hp:t></hp:run></hp:p></hp:tc></hp:tr>' +
+      '</hp:tbl></hp:sec>';
+    zip.folder('Contents')!.file('section0.xml', sectionXml);
+    const buf = (await zip.generateAsync({ type: 'arraybuffer' })) as ArrayBuffer;
+    const file = new File([buf], 'test.hwpx');
+    const parsed = await parseHwpx(file);
+
+    const header = parsed.segments.find((s) => s.text === '성명');
+    expect(header?.isHeader).toBe(true);
+    const name = parsed.segments.find((s) => s.text === '홍길동');
+    expect(name?.forcedCategory).toBe('person_name');
+    const phone = parsed.segments.find((s) => s.text === '010-1234-5678');
+    expect(phone?.forcedCategory).toBe('mobile');
+  });
+});
+
 describe('HWP 5.x parser (sample 픽스처)', () => {
   const samplePath = findSample(/\.hwp$/);
 
@@ -209,6 +237,57 @@ describe('HWP 5.x parser (sample 픽스처)', () => {
   });
 });
 
+describe('table-walker (docx 표 구조 → forcedCategory/isHeader)', () => {
+  test('docx 표 안의 헤더 행을 인식해 데이터 셀에 forcedCategory 부여', async () => {
+    const JSZip = (await import('jszip')).default;
+    const zip = new JSZip();
+    zip.file(
+      '[Content_Types].xml',
+      '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+    );
+    zip.folder('_rels')!.file(
+      '.rels',
+      '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+    );
+    // 표 1개: 헤더 행(성명|연락처|이메일|신분증) + 데이터 행 1개.
+    const docXml =
+      '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' +
+      '<w:tbl>' +
+        '<w:tr>' +
+          '<w:tc><w:p><w:r><w:t>성명</w:t></w:r></w:p></w:tc>' +
+          '<w:tc><w:p><w:r><w:t>연락처</w:t></w:r></w:p></w:tc>' +
+          '<w:tc><w:p><w:r><w:t>이메일</w:t></w:r></w:p></w:tc>' +
+          '<w:tc><w:p><w:r><w:t>신분증</w:t></w:r></w:p></w:tc>' +
+        '</w:tr>' +
+        '<w:tr>' +
+          '<w:tc><w:p><w:r><w:t>홍길동</w:t></w:r></w:p></w:tc>' +
+          '<w:tc><w:p><w:r><w:t>010-1234-5678</w:t></w:r></w:p></w:tc>' +
+          '<w:tc><w:p><w:r><w:t>foo@bar.com</w:t></w:r></w:p></w:tc>' +
+          '<w:tc><w:p><w:r><w:t>홍길동_신분증.pdf</w:t></w:r></w:p></w:tc>' +
+        '</w:tr>' +
+      '</w:tbl>' +
+      '</w:body></w:document>';
+    zip.folder('word')!.file('document.xml', docXml);
+    const buf = (await zip.generateAsync({ type: 'arraybuffer' })) as ArrayBuffer;
+    const file = new File([buf], 'test.docx');
+    const parsed = await parseDocx(file);
+
+    // 헤더 셀 4개 — isHeader=true
+    const headers = parsed.segments.filter((s) => s.isHeader);
+    expect(headers.map((s) => s.text).sort()).toEqual(['성명', '신분증', '연락처', '이메일']);
+
+    // 데이터 셀 — 컬럼별 forcedCategory / nameHintOnly
+    const name = parsed.segments.find((s) => s.text === '홍길동' && !s.isHeader);
+    expect(name?.forcedCategory).toBe('person_name');
+    const phone = parsed.segments.find((s) => s.text === '010-1234-5678');
+    expect(phone?.forcedCategory).toBe('mobile');
+    const email = parsed.segments.find((s) => s.text === 'foo@bar.com');
+    expect(email?.forcedCategory).toBe('email');
+    const idCell = parsed.segments.find((s) => s.text === '홍길동_신분증.pdf');
+    expect(idCell?.nameHintOnly).toBe(true);
+  });
+});
+
 describe('DOCX parser', () => {
   test('합성 docx round trip — w:t 노드 마스킹 후 재파싱 일치', async () => {
     // jszip로 최소 docx 만들기
@@ -241,6 +320,38 @@ describe('DOCX parser', () => {
     const reFile = new File([outBuf], 'test.docx');
     const reParsed = await parseDocx(reFile);
     expect(reParsed.segments.map((s) => s.text)).toEqual(['[NAME] 부장', '010-1234-XXXX']);
+  });
+});
+
+describe('table-walker (pptx 슬라이드 표 → forcedCategory)', () => {
+  test('pptx 슬라이드 안의 <a:tbl> 표 헤더 인식', async () => {
+    const JSZip = (await import('jszip')).default;
+    const zip = new JSZip();
+    zip.file(
+      '[Content_Types].xml',
+      '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+    );
+    const slide =
+      '<?xml version="1.0"?><p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+      '<p:cSld><p:spTree>' +
+      '<a:tbl>' +
+        '<a:tr><a:tc><a:txBody><a:p><a:r><a:t>성명</a:t></a:r></a:p></a:txBody></a:tc>' +
+        '<a:tc><a:txBody><a:p><a:r><a:t>이메일</a:t></a:r></a:p></a:txBody></a:tc></a:tr>' +
+        '<a:tr><a:tc><a:txBody><a:p><a:r><a:t>김민수</a:t></a:r></a:p></a:txBody></a:tc>' +
+        '<a:tc><a:txBody><a:p><a:r><a:t>foo@bar.com</a:t></a:r></a:p></a:txBody></a:tc></a:tr>' +
+      '</a:tbl>' +
+      '</p:spTree></p:cSld></p:sld>';
+    zip.folder('ppt')!.folder('slides')!.file('slide1.xml', slide);
+    const buf = (await zip.generateAsync({ type: 'arraybuffer' })) as ArrayBuffer;
+    const file = new File([buf], 'test.pptx');
+    const parsed = await parsePptx(file);
+
+    const header = parsed.segments.find((s) => s.text === '성명');
+    expect(header?.isHeader).toBe(true);
+    const name = parsed.segments.find((s) => s.text === '김민수');
+    expect(name?.forcedCategory).toBe('person_name');
+    const email = parsed.segments.find((s) => s.text === 'foo@bar.com');
+    expect(email?.forcedCategory).toBe('email');
   });
 });
 

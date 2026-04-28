@@ -7,6 +7,7 @@
 //   <a:t> 텍스트 노드 = DrawingML run의 텍스트 (DOCX <w:t>와 평행 패턴)
 
 import JSZip from 'jszip';
+import { buildNodeMeta, parseTables } from './table-walker';
 import type { ExportInput, ParseResult, Segment } from './types';
 
 const SLIDE_RE = /^ppt\/slides\/slide\d+\.xml$/;
@@ -62,10 +63,18 @@ export async function parsePptx(file: File): Promise<ParseResult> {
   for (const path of targetPaths(zip)) {
     const xml = await zip.files[path]!.async('string');
     const nodes = textNodes(xml);
+    // 슬라이드 안의 표 구조 식별 — 표 셀 텍스트 노드에 메타 부여.
+    const tables = parseTables(xml, 'a', 'a');
+    const nodeMeta = buildNodeMeta(tables);
     nodes.forEach((n, i) => {
       if (n.text.length === 0) return;
       const decoded = decodeXmlText(n.text).normalize('NFC');
-      segments.push({ id: segId(path, i), text: decoded });
+      const meta = nodeMeta.get(i);
+      const seg: Segment = { id: segId(path, i), text: decoded };
+      if (meta?.isHeader) seg.isHeader = true;
+      else if (meta?.forcedCategory) seg.forcedCategory = meta.forcedCategory;
+      else if (meta?.nameHintOnly) seg.nameHintOnly = true;
+      segments.push(seg);
       lines.push(decoded);
     });
   }
