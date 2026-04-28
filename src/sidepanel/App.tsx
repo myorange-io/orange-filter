@@ -22,6 +22,7 @@ import {
 import type { MaskMode, PIICategory } from '@/shared/types';
 import { FileDropZone } from './FileDropZone';
 import { FileQueueList } from './FileQueueList';
+import { ModelManager } from './ModelManager';
 import { useFileQueue } from './use-file-queue';
 
 export function App() {
@@ -78,14 +79,36 @@ export function App() {
     <TooltipProvider>
       <main className="min-h-screen p-6">
         <header className="mb-6 flex items-center gap-3">
-          <Shield className="h-7 w-7 text-primary" />
-          <div>
+          <Shield className="h-7 w-7 text-primary" aria-hidden />
+          <div className="flex-1">
             <h1 className="text-xl font-bold">오렌지 필터</h1>
             <p className="text-sm text-muted-foreground">
               개인정보를 이 PC 안에서 자동으로 가립니다.
             </p>
           </div>
         </header>
+
+        {/* Peak-End 카운터 — confirm 직후 storage onChanged로 즉시 반영. 0건일 땐 환영 카피. */}
+        <section
+          className="mb-6 rounded-lg border bg-gradient-to-br from-primary/5 to-primary/10 p-4"
+          aria-label="누적 보호 통계"
+          aria-live="polite"
+        >
+          {settings.stats.totalSpansMasked > 0 ? (
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold tabular-nums text-primary">
+                {settings.stats.totalSpansMasked.toLocaleString('ko-KR')}
+              </span>
+              <span className="text-sm text-muted-foreground">
+                건의 개인정보를 이 PC가 지켜냈어요
+              </span>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              첫 번째 paste를 기다리고 있어요. 모든 보호 기록은 이 PC 안에서만 보관됩니다.
+            </p>
+          )}
+        </section>
 
         <section className="mb-6 space-y-3" aria-label="파일 업로드">
           <FileDropZone
@@ -114,6 +137,9 @@ export function App() {
             <TabsTrigger value="filter" className="flex-1">
               필터
             </TabsTrigger>
+            <TabsTrigger value="models" className="flex-1">
+              모델
+            </TabsTrigger>
             <TabsTrigger value="settings" className="flex-1">
               설정
             </TabsTrigger>
@@ -134,6 +160,10 @@ export function App() {
                 onModeChange={setMode}
               />
             </section>
+          </TabsContent>
+
+          <TabsContent value="models" className="space-y-4">
+            <ModelManager />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-4">

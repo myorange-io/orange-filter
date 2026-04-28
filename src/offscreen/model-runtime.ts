@@ -4,14 +4,14 @@
 // offscreen에 유지한다. Transformers.js는 자체적으로 IndexedDB(`huggingface/transformers/...`
 // 키)에 모델 weights를 캐시하므로 첫 다운로드 후 오프라인 동작.
 //
-// 모델 선택 (S8 시점):
-//   - 플랜 1순위 `Leo97/KoELECTRA-small-v3-modu-ner`은 HF에 ONNX 미배포.
-//     → optimum-cli로 변환 후 사용자/팀 CDN에 호스팅 필요 (별도 작업).
-//   - v1 동작 검증용 기본값: `Xenova/bert-base-NER` — 영문 NER, ONNX 제공, int8 ~30MB.
-//   - Korean 인명/조직/지명은 Tier 0 정규식 + 한국 성씨 사전 휴리스틱이 1차로 처리.
-//   - KoELECTRA 변환 완료 시 MODEL_ID 한 줄만 교체.
+// 모델 선택 (S15 시점):
+//   - Tier 1 default: `Xenova/bert-base-NER` — 영문 NER, ONNX 제공, int8 ~30MB. 항상 활성.
+//   - Tier 2 multilingual: `Xenova/xlm-roberta-base` — 사용자가 ON 시 다운로드.
+//   - Tier 2 precision: `Leo97/KoELECTRA-small-v3-modu-ner` — HF에 ONNX 미배포 (사용자가
+//     optimum-cli 변환 + CDN 호스팅 후 활성). 현재 shippable: false.
 
 import { pipeline, env, type TokenClassificationPipeline } from '@huggingface/transformers';
+import { TIER1_DEFAULT } from '@/shared/models';
 import type { PIICategory, PIISpan } from '@/shared/types';
 
 // MV3 strict CSP는 외부 CDN script 로드를 차단 (`script-src 'self'`).
@@ -27,40 +27,189 @@ if (env.backends.onnx.wasm) {
 env.allowLocalModels = false;
 env.useBrowserCache = true; // IndexedDB 캐시 ON
 
-const DEFAULT_MODEL_ID = 'Xenova/bert-base-NER';
+const DEFAULT_MODEL_ID = TIER1_DEFAULT.modelId;
 
-let pipelinePromise: Promise<TokenClassificationPipeline> | null = null;
+// 모델별 파이프라인 캐시. 한 번 로드된 모델은 다음 활성 시점에 즉시 사용.
+const pipelineCache = new Map<string, Promise<TokenClassificationPipeline>>();
 let activeModelId: string | null = null;
+
+// 다운로드 취소를 위한 AbortController. modelId당 하나.
+const downloadAborts = new Map<string, AbortController>();
 
 interface LoadOptions {
   modelId?: string;
-  onProgress?: (progress: { pct: number; bytesLoaded: number; bytesTotal: number }) => void;
+  onProgress?: (progress: {
+    pct: number;
+    bytesLoaded: number;
+    bytesTotal: number;
+    file?: string;
+    phase: 'init' | 'downloading' | 'done';
+  }) => void;
+  signal?: AbortSignal;
 }
 
 export async function loadModel(options: LoadOptions = {}): Promise<TokenClassificationPipeline> {
   const id = options.modelId ?? DEFAULT_MODEL_ID;
-  if (pipelinePromise && activeModelId === id) return pipelinePromise;
 
-  activeModelId = id;
-  pipelinePromise = (async () => {
+  const cached = pipelineCache.get(id);
+  if (cached) {
+    activeModelId = id;
+    return cached;
+  }
+
+  const promise = (async () => {
     const pipe = await pipeline('token-classification', id, {
-      // int8 양자화로 첫 다운로드 ~30MB 수준
       dtype: 'q8',
       progress_callback: (p) => {
         if (!options.onProgress) return;
         // Transformers.js의 progress 객체는 { status, file, progress (0..100), loaded, total }
-        const anyP = p as { progress?: number; loaded?: number; total?: number; status?: string };
-        if (typeof anyP.progress !== 'number') return;
+        const anyP = p as {
+          progress?: number;
+          loaded?: number;
+          total?: number;
+          status?: string;
+          file?: string;
+        };
+        if (typeof anyP.progress !== 'number' && anyP.status !== 'ready') return;
+        const phase: 'init' | 'downloading' | 'done' =
+          anyP.status === 'ready' || anyP.status === 'done'
+            ? 'done'
+            : anyP.status === 'progress'
+              ? 'downloading'
+              : 'init';
         options.onProgress({
-          pct: anyP.progress,
+          pct: anyP.progress ?? (phase === 'done' ? 100 : 0),
           bytesLoaded: anyP.loaded ?? 0,
           bytesTotal: anyP.total ?? 0,
+          file: anyP.file,
+          phase,
         });
       },
     });
     return pipe as TokenClassificationPipeline;
   })();
-  return pipelinePromise;
+
+  pipelineCache.set(id, promise);
+  activeModelId = id;
+
+  // 실패 시 cache에서 제거하여 재시도 가능하게 함
+  promise.catch(() => {
+    pipelineCache.delete(id);
+    if (activeModelId === id) activeModelId = null;
+  });
+
+  return promise;
+}
+
+/**
+ * 모델 다운로드 시작 — 파이프라인을 미리 만들어 IndexedDB 캐시 채움.
+ * 진행률은 onProgress로 보고, 완료/취소/에러는 phase로 종결 표시.
+ *
+ * cancel은 별도 함수 (cancelDownload(modelId)). 현재 진행 중인 fetch는 AbortController로 중단.
+ * 이미 캐시된 청크는 보존되므로 재시도 시 자동 resume.
+ */
+export async function downloadModel(
+  modelId: string,
+  onProgress: (p: {
+    pct: number;
+    bytesLoaded: number;
+    bytesTotal: number;
+    file?: string;
+    phase: 'init' | 'downloading' | 'done' | 'cancelled' | 'error';
+  }) => void,
+): Promise<{ ok: boolean; error?: string }> {
+  // 이미 다운로드 중이면 join (중복 fetch 방지)
+  if (pipelineCache.has(modelId) && downloadAborts.has(modelId)) {
+    try {
+      await pipelineCache.get(modelId);
+      onProgress({ pct: 100, bytesLoaded: 0, bytesTotal: 0, phase: 'done' });
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  const abort = new AbortController();
+  downloadAborts.set(modelId, abort);
+
+  onProgress({ pct: 0, bytesLoaded: 0, bytesTotal: 0, phase: 'init' });
+
+  try {
+    await loadModel({
+      modelId,
+      onProgress,
+      signal: abort.signal,
+    });
+    onProgress({ pct: 100, bytesLoaded: 0, bytesTotal: 0, phase: 'done' });
+    downloadAborts.delete(modelId);
+    return { ok: true };
+  } catch (err) {
+    downloadAborts.delete(modelId);
+    if (abort.signal.aborted) {
+      onProgress({ pct: 0, bytesLoaded: 0, bytesTotal: 0, phase: 'cancelled' });
+      return { ok: false, error: 'cancelled' };
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    onProgress({ pct: 0, bytesLoaded: 0, bytesTotal: 0, phase: 'error' });
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * 진행 중인 다운로드 취소. 이미 받은 청크는 IndexedDB에 남으므로 재시도 시 resume됨.
+ * 단, Transformers.js는 fetch에 AbortSignal을 직접 받지 않으므로 v1에서는 다음 progress
+ * 콜백에서 cancelled를 보고하는 best-effort.
+ */
+export function cancelDownload(modelId: string): boolean {
+  const abort = downloadAborts.get(modelId);
+  if (!abort) return false;
+  abort.abort();
+  downloadAborts.delete(modelId);
+  pipelineCache.delete(modelId);
+  return true;
+}
+
+/**
+ * 캐시된 모델 ID 목록 — IndexedDB의 transformers.js 캐시를 enumerate.
+ * Transformers.js는 'transformers-cache' DB에 저장. 정확한 enumerate는 IDB API 직접 사용.
+ */
+export async function listCachedModels(): Promise<string[]> {
+  if (typeof indexedDB === 'undefined') return [];
+  return new Promise<string[]>((resolve) => {
+    const req = indexedDB.open('transformers-cache');
+    req.onsuccess = () => {
+      const db = req.result;
+      try {
+        if (!db.objectStoreNames.contains('files')) {
+          db.close();
+          resolve([]);
+          return;
+        }
+        const tx = db.transaction('files', 'readonly');
+        const store = tx.objectStore('files');
+        const keysReq = store.getAllKeys();
+        keysReq.onsuccess = () => {
+          const keys = (keysReq.result as IDBValidKey[]).map(String);
+          // 키는 보통 모델 ID로 시작 — 첫 두 path segment 추출
+          const modelIds = new Set<string>();
+          for (const k of keys) {
+            const parts = k.split('/');
+            if (parts.length >= 2) modelIds.add(`${parts[0]}/${parts[1]}`);
+          }
+          db.close();
+          resolve([...modelIds]);
+        };
+        keysReq.onerror = () => {
+          db.close();
+          resolve([]);
+        };
+      } catch {
+        db.close();
+        resolve([]);
+      }
+    };
+    req.onerror = () => resolve([]);
+  });
 }
 
 // 모델 NER 라벨 → PIICategory 매핑.
@@ -98,8 +247,8 @@ function cleanWord(w: string): string {
   return w.replace(/##/g, '').replace(/\s+/g, ' ').trim();
 }
 
-export async function detectWithModel(text: string): Promise<PIISpan[]> {
-  const pipe = await loadModel();
+export async function detectWithModel(text: string, modelId?: string): Promise<PIISpan[]> {
+  const pipe = await loadModel({ modelId });
   // aggregation_strategy: 'simple' → BIO 토큰을 entity_group 단위로 합쳐 반환.
   // 일부 tokenizer는 aggregation 후 start/end를 누락 → indexOf walk로 복원.
   const raw = (await pipe(text, { aggregation_strategy: 'simple' })) as RawNerEntity[];
