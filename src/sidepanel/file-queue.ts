@@ -19,6 +19,7 @@ export interface QueueItem {
 export const SUPPORTED_EXTENSIONS = [
   '.pdf',
   '.docx',
+  '.pptx',
   '.xlsx',
   '.xls',
   '.csv',

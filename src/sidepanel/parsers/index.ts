@@ -31,6 +31,10 @@ async function load(ext: string): Promise<FormatModule> {
       const m = await import('./docx');
       return { parse: m.parseDocx, exportMasked: m.exportDocx };
     }
+    case '.pptx': {
+      const m = await import('./pptx');
+      return { parse: m.parsePptx, exportMasked: m.exportPptx };
+    }
     case '.pdf': {
       const m = await import('./pdf');
       return { parse: m.parsePdf, exportMasked: m.exportPdf };

@@ -8,6 +8,7 @@ import { parseTxt, exportTxt } from './txt';
 import { parseCsv, exportCsv } from './csv';
 import { parseXlsx, exportXlsx } from './xlsx';
 import { parseDocx, exportDocx } from './docx';
+import { parsePptx, exportPptx } from './pptx';
 import { parseHwp } from './hwp';
 
 /**
@@ -192,5 +193,69 @@ describe('DOCX parser', () => {
     const reFile = new File([outBuf], 'test.docx');
     const reParsed = await parseDocx(reFile);
     expect(reParsed.segments.map((s) => s.text)).toEqual(['[NAME] 부장', '010-1234-XXXX']);
+  });
+});
+
+describe('PPTX parser', () => {
+  test('합성 pptx round trip — a:t 노드 마스킹 후 재파싱 일치 (다중 슬라이드)', async () => {
+    const JSZip = (await import('jszip')).default;
+    const zip = new JSZip();
+    zip.file(
+      '[Content_Types].xml',
+      '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>',
+    );
+    // 두 슬라이드 — 각각 인명·전화 텍스트 노드
+    const slide1 =
+      '<?xml version="1.0"?><p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>대표 김민수</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>';
+    const slide2 =
+      '<?xml version="1.0"?><p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><p:cSld><p:spTree><p:sp><p:txBody><a:p><a:r><a:t>연락 010-1234-5678</a:t></a:r></a:p><a:p><a:r><a:t>이메일 lead@example.org</a:t></a:r></a:p></p:txBody></p:sp></p:spTree></p:cSld></p:sld>';
+    zip.folder('ppt')!.folder('slides')!.file('slide1.xml', slide1);
+    zip.folder('ppt')!.folder('slides')!.file('slide2.xml', slide2);
+
+    const buf = (await zip.generateAsync({ type: 'arraybuffer' })) as ArrayBuffer;
+    const file = new File([buf], 'test.pptx');
+
+    const parsed = await parsePptx(file);
+    const texts = parsed.segments.map((s) => s.text);
+    expect(texts).toContain('대표 김민수');
+    expect(texts).toContain('연락 010-1234-5678');
+    expect(texts).toContain('이메일 lead@example.org');
+
+    // 모든 텍스트 노드 마스킹
+    const masked = new Map<string, string>();
+    for (const seg of parsed.segments) {
+      if (seg.text.includes('김민수')) masked.set(seg.id, '대표 [NAME]');
+      else if (seg.text.includes('010-')) masked.set(seg.id, '연락 010-XXXX-XXXX');
+      else if (seg.text.includes('@')) masked.set(seg.id, '이메일 [EMAIL]');
+    }
+
+    const outBlob = await exportPptx(file, masked);
+    const reFile = new File([await outBlob.arrayBuffer()], 'test.pptx');
+    const reParsed = await parsePptx(reFile);
+    const reTexts = reParsed.segments.map((s) => s.text);
+    expect(reTexts).toContain('대표 [NAME]');
+    expect(reTexts).toContain('연락 010-XXXX-XXXX');
+    expect(reTexts).toContain('이메일 [EMAIL]');
+    expect(reTexts).not.toContain('대표 김민수');
+    expect(reTexts).not.toContain('연락 010-1234-5678');
+  });
+
+  test('XML 특수문자(<, &) 보존 + 발표자 노트 포함', async () => {
+    const JSZip = (await import('jszip')).default;
+    const zip = new JSZip();
+    const slide =
+      '<?xml version="1.0"?><p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:t>Lee &amp; Co.</a:t><a:t>&lt;신청서&gt;</a:t></p:sld>';
+    const notes =
+      '<?xml version="1.0"?><p:notes xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:t>발표자 메모: 010-1234-5678</a:t></p:notes>';
+    zip.folder('ppt')!.folder('slides')!.file('slide1.xml', slide);
+    zip.folder('ppt')!.folder('notesSlides')!.file('notesSlide1.xml', notes);
+    const buf = (await zip.generateAsync({ type: 'arraybuffer' })) as ArrayBuffer;
+    const file = new File([buf], 'test.pptx');
+
+    const parsed = await parsePptx(file);
+    const texts = parsed.segments.map((s) => s.text);
+    expect(texts).toContain('Lee & Co.'); // entity 디코딩
+    expect(texts).toContain('<신청서>'); // entity 디코딩
+    expect(texts).toContain('발표자 메모: 010-1234-5678'); // 노트도 추출
   });
 });
