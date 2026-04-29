@@ -24,7 +24,6 @@ import { makeDemoHwpx } from './demo-fixture';
 import { FileDropZone } from './FileDropZone';
 import { FileQueueList } from './FileQueueList';
 import { GateScreen, useModelCached } from './GateScreen';
-import { ModelManager } from './ModelManager';
 import { useFileQueue } from './use-file-queue';
 
 export function App() {
@@ -114,11 +113,6 @@ export function App() {
             </p>
           </div>
         </header>
-
-        {/* 모델 관리 — 헤더 바로 아래 인라인. 사용자가 받기 액션을 즉시 인지하도록 모델 탭은 분리하지 않음. */}
-        <section className="mb-6">
-          <ModelManager />
-        </section>
 
         <section className="mb-6" aria-label="파일 업로드">
           <h2 className="mb-1 text-base font-bold">파일 업로드</h2>
