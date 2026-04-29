@@ -10,6 +10,10 @@ const SECTION_RE = /^Contents\/section\d+\.xml$/;
 // `<x:t ...>text</x:t>` — XML 파서 없이 텍스트 노드만 캡처.
 const TEXT_NODE_RE = /<([a-zA-Z][a-zA-Z0-9]*:t)(?:\s[^>]*)?>([^<]*)<\/\1>/g;
 
+// 한컴 오피스가 미리보기 표시용으로 zip 안에 함께 저장하는 평문 텍스트.
+// 본문(section*.xml)을 가려도 이 파일이 남으면 파일 미리보기에 원본 PII가 그대로 노출.
+const PRV_TEXT_PATH = 'Preview/PrvText.txt';
+
 function decodeXml(s: string): string {
   return s
     .replace(/&amp;/g, '&')
@@ -58,6 +62,15 @@ export async function parseHwpx(file: File): Promise<ParseResult> {
       lines.push(decoded);
     }
   }
+  // 미리보기 텍스트 (평문). 본문 마스킹과 별개로 가려야 미리보기 누출 차단.
+  const prvFile = zip.files[PRV_TEXT_PATH];
+  if (prvFile) {
+    const raw = (await prvFile.async('string')).normalize('NFC');
+    if (raw.length > 0) {
+      segments.push({ id: segId(PRV_TEXT_PATH, 0), text: raw });
+      lines.push(raw);
+    }
+  }
   return { segments, combinedText: lines.join('\n') };
 }
 
@@ -95,6 +108,15 @@ export async function exportHwpx(originalFile: File, masked: ExportInput): Promi
     }
     out += xml.slice(cursor);
     zip.file(path, out);
+  }
+  // 미리보기 텍스트 — parse 시 단일 segment로 등록했으므로 동일 id로 치환.
+  const prvFile = zip.files[PRV_TEXT_PATH];
+  if (prvFile) {
+    const id = segId(PRV_TEXT_PATH, 0);
+    const replacement = masked.get(id);
+    if (replacement !== undefined) {
+      zip.file(PRV_TEXT_PATH, replacement);
+    }
   }
   const blob = await zip.generateAsync({ type: 'blob' });
   return new Blob([await blob.arrayBuffer()], { type: 'application/hwp+zip' });

@@ -24,14 +24,14 @@ describe('maskSegments (v1.2 async)', () => {
     expect(masked).not.toContain('user@example.com');
   });
 
-  it('isHeader segment — 원문 그대로', async () => {
+  it('isHeader segment — 원문 그대로 (PII 컬럼은 마스킹)', async () => {
+    // v1.3: 일반 본문에서 정규식 NAME 검출 안 함 (NER 책임). 표 PII 컬럼은 nameHintOnly로 활성.
     const segments: Segment[] = [
       seg('h1', '성명', { isHeader: true }),
-      seg('s1', '김철수'),
+      seg('s1', '김철수', { nameHintOnly: true }),
     ];
     const { maskedMap } = await maskSegments(segments);
     expect(maskedMap.get('h1')).toBe('성명');
-    // 본문은 마스킹 (regex가 김철수 잡음)
     expect(maskedMap.get('s1')).not.toBe('김철수');
   });
 

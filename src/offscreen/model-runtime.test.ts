@@ -14,13 +14,15 @@ describe('mapLabel — Transformers.js 라벨 → PIICategory', () => {
   it('BIO prefix 제거 (B-/I-/E-/S-)', () => {
     expect(mapLabel('B-PER')).toBe('person_name');
     expect(mapLabel('I-PER')).toBe('person_name');
-    expect(mapLabel('E-ORG')).toBe('organization');
+    // v1.3: ORG/COMPANY는 사용자 정의상 PII 아님 → null 매핑.
+    expect(mapLabel('E-ORG')).toBeNull();
     expect(mapLabel('S-LOC')).toBe('address');
   });
 
-  it('Tier 1 (bert-base-NER): PER/ORG/LOC/DATE', () => {
+  it('Tier 1 (bert-base-NER): PER/LOC/DATE', () => {
     expect(mapLabel('PER')).toBe('person_name');
-    expect(mapLabel('ORG')).toBe('organization');
+    // v1.3: ORG는 PII 아님 → null.
+    expect(mapLabel('ORG')).toBeNull();
     expect(mapLabel('LOC')).toBe('address');
     expect(mapLabel('DATE')).toBe('date');
     expect(mapLabel('MISC')).toBeNull(); // 미매핑
@@ -53,8 +55,8 @@ describe('mapLabel — Transformers.js 라벨 → PIICategory', () => {
     expect(mapLabel('BUILDINGNUM')).toBe('address');
   });
 
-  it('AEGIS PII: 조직 (COMPANY)', () => {
-    expect(mapLabel('COMPANY')).toBe('organization');
+  it('AEGIS PII: 조직 (COMPANY) — v1.3에서 null 매핑 (조직명은 PII 아님)', () => {
+    expect(mapLabel('COMPANY')).toBeNull();
   });
 
   it('AEGIS PII: 시간 (TIME, DATEOFBIRTH)', () => {

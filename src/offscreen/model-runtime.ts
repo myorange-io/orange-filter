@@ -227,9 +227,11 @@ export function mapLabel(label: string): PIICategory | null {
     case 'GIVENNAME':
     case 'SURNAME':
       return 'person_name';
+    // v1.3: 조직명은 PII가 아님 — NER이 ORG/COMPANY를 잡아도 마스킹하지 않는다.
+    // (사용자 정의: 한국사회적기업진흥원·조달청 등 모든 조직명은 PII 마스킹 대상 외.)
     case 'ORG':
     case 'COMPANY':
-      return 'organization';
+      return null;
     case 'LOC':
     case 'STREET':
     case 'CITY':
