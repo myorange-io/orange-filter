@@ -50,3 +50,7 @@ test-results/
 playwright-report/
 playwright/.cache/
 releases/
+
+# AEGIS PII 측정 산출물 (스크립트와 케이스셋은 commit, report만 제외)
+scripts/eval-aegis/report.json
+.cache/huggingface/

@@ -19,10 +19,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    // 평행 worktree에서 5173/5174가 점유됐을 때 VITE_PORT/VITE_HMR_PORT로 override.
+    port: Number(process.env.VITE_PORT) || 5173,
     strictPort: true,
     hmr: {
-      port: 5174,
+      port: Number(process.env.VITE_HMR_PORT) || 5174,
     },
   },
 });

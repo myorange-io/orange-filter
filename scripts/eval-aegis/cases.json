@@ -1,0 +1,299 @@
+{
+  "_note": "AEGIS PII 한국어 자연 문장 평가 케이스셋. expected의 text는 입력 안에 정확히 등장. 위치는 자동 계산. category는 PIICategory enum과 일치.",
+  "cases": [
+    {
+      "id": "P01-natural-name-particle",
+      "kind": "positive",
+      "text": "안녕하세요, 조성도입니다. 연락처는 010-1234-5678 이고 이메일은 jodo@example.com 입니다.",
+      "expected": [
+        { "text": "조성도", "category": "person_name" },
+        { "text": "010-1234-5678", "category": "mobile" },
+        { "text": "jodo@example.com", "category": "email" }
+      ]
+    },
+    {
+      "id": "P02-multi-pii-formal",
+      "kind": "positive",
+      "text": "신청자 김철수의 주민등록번호는 900101-1234568, 카드 4242-4242-4242-4242 입니다.",
+      "expected": [
+        { "text": "김철수", "category": "person_name" },
+        { "text": "900101-1234568", "category": "rrn" },
+        { "text": "4242-4242-4242-4242", "category": "card" }
+      ]
+    },
+    {
+      "id": "P03-name-title-particle",
+      "kind": "positive",
+      "text": "이번 보고서는 박지영 팀장님이 작성하셨습니다. 문의는 02-3456-7890으로 부탁드립니다.",
+      "expected": [
+        { "text": "박지영", "category": "person_name" },
+        { "text": "02-3456-7890", "category": "landline" }
+      ]
+    },
+    {
+      "id": "P04-address-mobile",
+      "kind": "positive",
+      "text": "서울시 강남구 테헤란로 123, 우편번호 06234, 김민수 대표 (010-9876-5432)",
+      "expected": [
+        { "text": "김민수", "category": "person_name" },
+        { "text": "010-9876-5432", "category": "mobile" }
+      ]
+    },
+    {
+      "id": "P05-bank-account-honorific",
+      "kind": "positive",
+      "text": "기부자 이수정 님이 신한은행 110-234-567890 계좌로 이체했습니다.",
+      "expected": [
+        { "text": "이수정", "category": "person_name" },
+        { "text": "110-234-567890", "category": "account" }
+      ]
+    },
+    {
+      "id": "P06-organization-foundation",
+      "kind": "positive",
+      "text": "해당 사업은 한국문화재단에서 진행됩니다.",
+      "expected": [
+        { "text": "한국문화재단", "category": "organization" }
+      ]
+    },
+    {
+      "id": "P07-driver-license",
+      "kind": "positive",
+      "text": "운전면허번호는 12-34-567890-12 입니다.",
+      "expected": [
+        { "text": "12-34-567890-12", "category": "driver_license" }
+      ]
+    },
+    {
+      "id": "P08-multiple-people",
+      "kind": "positive",
+      "text": "회의 참석자: 윤소진 이사, 강민호 사무국장, 이지은 연구원",
+      "expected": [
+        { "text": "윤소진", "category": "person_name" },
+        { "text": "강민호", "category": "person_name" },
+        { "text": "이지은", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P09-business-number",
+      "kind": "positive",
+      "text": "사업자등록번호 123-45-67891로 발행된 인보이스를 첨부합니다.",
+      "expected": [
+        { "text": "123-45-67891", "category": "business_number" }
+      ]
+    },
+    {
+      "id": "P10-name-doctor",
+      "kind": "positive",
+      "text": "프로젝트 책임자: 홍길동 박사, 연락처 hong.gd@daum.net",
+      "expected": [
+        { "text": "홍길동", "category": "person_name" },
+        { "text": "hong.gd@daum.net", "category": "email" }
+      ]
+    },
+    {
+      "id": "P11-finding1-natural-bare",
+      "kind": "positive",
+      "text": "안녕하세요, 정민호입니다.",
+      "expected": [
+        { "text": "정민호", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P12-finding1-particle-ga",
+      "kind": "positive",
+      "text": "조성도가 작성한 보고서입니다.",
+      "expected": [
+        { "text": "조성도", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P13-finding1-ssi",
+      "kind": "positive",
+      "text": "강현수씨께 문의 부탁드립니다.",
+      "expected": [
+        { "text": "강현수", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P14-name-doctor-uy",
+      "kind": "positive",
+      "text": "이수민 박사의 견해를 정리한 자료입니다.",
+      "expected": [
+        { "text": "이수민", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P15-name-nim-eun",
+      "kind": "positive",
+      "text": "박지영님은 다음 주 휴가입니다.",
+      "expected": [
+        { "text": "박지영", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P16-multiple-context-natural",
+      "kind": "positive",
+      "text": "이번 워크숍의 발제는 김유진 교수가 맡고, 토론은 최승호 박사가 진행합니다.",
+      "expected": [
+        { "text": "김유진", "category": "person_name" },
+        { "text": "최승호", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P17-credential-leak",
+      "kind": "positive",
+      "text": "저희 API key는 sk-abcd1234efgh5678ijkl 입니다. 절대 외부 공유하지 마세요.",
+      "expected": [
+        { "text": "sk-abcd1234efgh5678ijkl", "category": "credential" }
+      ]
+    },
+    {
+      "id": "P18-multi-domain-natural",
+      "kind": "positive",
+      "text": "민원 응대: 신청인 윤혜진 (010-7777-8888) — 처리 결과를 yhj@somemail.kr 로 회신 바랍니다.",
+      "expected": [
+        { "text": "윤혜진", "category": "person_name" },
+        { "text": "010-7777-8888", "category": "mobile" },
+        { "text": "yhj@somemail.kr", "category": "email" }
+      ]
+    },
+    {
+      "id": "P19-foreigner-rrn",
+      "kind": "positive",
+      "text": "외국인등록번호 880101-5234567 입니다.",
+      "expected": [
+        { "text": "880101-5234567", "category": "foreign_registration" }
+      ]
+    },
+    {
+      "id": "P20-natural-three-people",
+      "kind": "positive",
+      "text": "이번 회의에는 박철수와 김민지, 그리고 정수영도 함께 참석할 예정입니다.",
+      "expected": [
+        { "text": "박철수", "category": "person_name" },
+        { "text": "김민지", "category": "person_name" },
+        { "text": "정수영", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P21-honorific-deceased",
+      "kind": "positive",
+      "text": "故 이순재 선생님을 추모합니다.",
+      "expected": [
+        { "text": "이순재", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P22-quoted-said",
+      "kind": "positive",
+      "text": "강민영 대표는 \"올해 사업은 성공적이었다\"고 말했다.",
+      "expected": [
+        { "text": "강민영", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P23-natural-introduce",
+      "kind": "positive",
+      "text": "제 이름은 한지호이고, 회사 이메일은 jiho.han@example.co.kr 입니다.",
+      "expected": [
+        { "text": "한지호", "category": "person_name" },
+        { "text": "jiho.han@example.co.kr", "category": "email" }
+      ]
+    },
+    {
+      "id": "P24-double-surname",
+      "kind": "positive",
+      "text": "제갈공명 선생의 가르침을 따릅니다.",
+      "expected": [
+        { "text": "제갈공명", "category": "person_name" }
+      ]
+    },
+    {
+      "id": "P25-name-after-pre-particle",
+      "kind": "positive",
+      "text": "본 보고서는 강유리 연구원에 의해 작성되었습니다.",
+      "expected": [
+        { "text": "강유리", "category": "person_name" }
+      ]
+    },
+
+    {
+      "id": "N01-policy-no-name",
+      "kind": "negative",
+      "text": "조사결과 정부정책의 효과는 긍정적이었으며, 향후 연구개발이 필요합니다.",
+      "expected": []
+    },
+    {
+      "id": "N02-summary-words",
+      "kind": "negative",
+      "text": "이상의 내용을 정리하면 다음과 같습니다. 주요내용은 다음과 같이 요약됩니다.",
+      "expected": []
+    },
+    {
+      "id": "N03-corporate-form",
+      "kind": "negative",
+      "text": "비영리법인은 공익을 위해 설립된 단체이며, 사단법인과 재단법인으로 구분됩니다.",
+      "expected": []
+    },
+    {
+      "id": "N04-everyday-talk",
+      "kind": "negative",
+      "text": "오늘은 회의가 길어졌어요. 도움 주신 덕분에 잘 마무리됐습니다.",
+      "expected": []
+    },
+    {
+      "id": "N05-process-doc",
+      "kind": "negative",
+      "text": "신청서 작성 후 심사를 거쳐 결과가 통보됩니다. 문의는 운영기관으로 부탁드립니다.",
+      "expected": []
+    },
+    {
+      "id": "N06-research-headline",
+      "kind": "negative",
+      "text": "한국문화의 다양성에 관한 조사보고서가 공개되었습니다.",
+      "expected": []
+    },
+    {
+      "id": "N07-time-and-date",
+      "kind": "negative",
+      "text": "회의는 오후 2시부터 3시까지 진행되며, 다음 회의는 다음 주 월요일입니다.",
+      "expected": []
+    },
+    {
+      "id": "N08-formality-only",
+      "kind": "negative",
+      "text": "관계자 여러분께 감사드립니다. 앞으로도 많은 관심 부탁드립니다.",
+      "expected": []
+    },
+
+    {
+      "id": "M01-name-only-no-particle",
+      "kind": "positive",
+      "text": "담당: 황준호\n연락: 010-2222-3333",
+      "expected": [
+        { "text": "황준호", "category": "person_name" },
+        { "text": "010-2222-3333", "category": "mobile" }
+      ]
+    },
+    {
+      "id": "M02-mixed-en-ko",
+      "kind": "positive",
+      "text": "Lead PM: 정수아, Email: sue.jung@orange-impact.io, Mobile: +82-10-1234-9999",
+      "expected": [
+        { "text": "정수아", "category": "person_name" },
+        { "text": "sue.jung@orange-impact.io", "category": "email" }
+      ]
+    },
+    {
+      "id": "M03-name-after-comma",
+      "kind": "positive",
+      "text": "참가자, 김다은, 이수정, 박서준",
+      "expected": [
+        { "text": "김다은", "category": "person_name" },
+        { "text": "이수정", "category": "person_name" },
+        { "text": "박서준", "category": "person_name" }
+      ]
+    }
+  ]
+}

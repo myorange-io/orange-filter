@@ -272,11 +272,77 @@ interface RawNerEntity {
   score: number;
 }
 
-const MIN_CONFIDENCE = 0.5;
+// AEGIS는 SURNAME과 GIVENNAME을 분리 라벨링한다(예: "조성도" → "조"+"성도").
+// 모델 카드의 한국어 F1 0.9632는 학습 분포 내 측정값으로, 자연 문장 paste에서는
+// 후처리 없이 token 임계치를 통과하지 못하는 경우가 많다. docs/EVAL_AEGIS_v1.2.md 참고.
+// 0.5 → 0.3로 낮춰도 negative 케이스 FP 0건이 측정에서 확인됐다.
+const MIN_CONFIDENCE = 0.3;
+
+// 매치 끝이 한국어 조사·존칭이면 한 글자 제거 — 마스킹 결과 텍스트 무결성 보장.
+// 예: "김철수의" → "김철수", "조성도가" → "조성도".
+// "씨"/"님"은 한국 이름 끝글자로 쓰일 수 있으나(김씨, 강씨), 4자 이상 매치에서만 떼므로
+// 3자 이름(김철수)은 영향 없음.
+const TRAILING_PARTICLES = new Set([
+  '의', '가', '은', '는', '이', '을', '를', '께', '에', '도', '만', '와', '과', '로',
+  '씨', '님',
+]);
 
 // BERT WordPiece의 ## prefix(서브워드) 정리
 function cleanWord(w: string): string {
   return w.replace(/##/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// 인접한 person_name 스팬 머지 — AEGIS의 SURNAME+GIVENNAME 분리 라벨 보정.
+// gap ≤ 1자(공백 한 칸 등)까지 허용. 2자 이상이면 별도 인물로 보고 머지하지 않음.
+export function mergeAdjacentNames(spans: PIISpan[], text: string): PIISpan[] {
+  const sorted = [...spans].sort((a, b) => a.start - b.start);
+  const out: PIISpan[] = [];
+  for (const s of sorted) {
+    const prev = out[out.length - 1];
+    if (
+      prev &&
+      prev.category === 'person_name' &&
+      s.category === 'person_name' &&
+      s.start - prev.end <= 1
+    ) {
+      prev.end = s.end;
+      prev.text = text.slice(prev.start, prev.end);
+      // 머지된 confidence는 두 스팬의 평균
+      prev.confidence = (prev.confidence + s.confidence) / 2;
+      continue;
+    }
+    out.push({ ...s });
+  }
+  return out;
+}
+
+// 매치 끝이 조사/존칭이면 한 글자 trim. 3자 이내 이름은 보호.
+export function trimTrailingParticles(spans: PIISpan[], text: string): PIISpan[] {
+  return spans.map((s) => {
+    if (s.category !== 'person_name') return s;
+    if (s.end - s.start < 4) return s;
+    const lastChar = text[s.end - 1];
+    if (lastChar && TRAILING_PARTICLES.has(lastChar)) {
+      const trimmed: PIISpan = {
+        ...s,
+        end: s.end - 1,
+        text: text.slice(s.start, s.end - 1),
+      };
+      // 한 번 더 trim 시도 (예: "박지영님은" → "박지영님" → "박지영")
+      if (trimmed.end - trimmed.start >= 4) {
+        const innerLast = text[trimmed.end - 1];
+        if (innerLast && TRAILING_PARTICLES.has(innerLast)) {
+          return {
+            ...trimmed,
+            end: trimmed.end - 1,
+            text: text.slice(trimmed.start, trimmed.end - 1),
+          };
+        }
+      }
+      return trimmed;
+    }
+    return s;
+  });
 }
 
 export async function detectWithModel(text: string, modelId?: string): Promise<PIISpan[]> {
@@ -314,7 +380,9 @@ export async function detectWithModel(text: string, modelId?: string): Promise<P
       source: 'model',
     });
   }
-  return spans;
+  // 후처리: SURNAME + GIVENNAME 머지 → 인접 조사 trim.
+  const merged = mergeAdjacentNames(spans, text);
+  return trimTrailingParticles(merged, text);
 }
 
 export function getActiveModelId(): string | null {

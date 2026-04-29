@@ -1,11 +1,15 @@
 // Segment 배열을 받아 detect + 헤더 힌트(forcedCategory/isHeader) +
 // 인라인 라벨 패턴까지 합쳐 마스킹 결과를 셀 id별로 반환.
 // 파이프라인 핵심이라 사이드패널/테스트에서 공용.
+//
+// v1.2: 일반 segment 검출은 background DETECT_REQUEST로 라우팅하여 정규식 + NER 합산.
+// chrome.runtime이 없는 환경(테스트, 노드)에서는 정규식 폴백 (detect-client에 내장).
 
 import type { Segment } from './parsers/types';
 import { maskText } from '@/background/pii/mask';
-import { detectContextualName, detectKoreanPII } from '@/background/pii/regex';
+import { detectContextualName } from '@/background/pii/regex';
 import { findInlineLabels } from '@/background/pii/header-hints';
+import { requestDetect } from '@/shared/lib/detect-client';
 import type { PIISpan } from '@/shared/types';
 
 export interface MaskSegmentsResult {
@@ -13,13 +17,24 @@ export interface MaskSegmentsResult {
   totalSpans: number;
 }
 
-export function maskSegments(segments: ReadonlyArray<Segment>): MaskSegmentsResult {
+export interface MaskSegmentsOptions {
+  /** 진행률 콜백. 큐 처리 UI 갱신용. */
+  onProgress?: (done: number, total: number) => void;
+}
+
+export async function maskSegments(
+  segments: ReadonlyArray<Segment>,
+  options: MaskSegmentsOptions = {},
+): Promise<MaskSegmentsResult> {
   const out = new Map<string, string>();
   let total = 0;
-  for (const seg of segments) {
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i]!;
+
     // 헤더 행은 PII가 아님 — 원문 유지.
     if (seg.isHeader) {
       out.set(seg.id, seg.text);
+      options.onProgress?.(i + 1, segments.length);
       continue;
     }
 
@@ -36,11 +51,12 @@ export function maskSegments(segments: ReadonlyArray<Segment>): MaskSegmentsResu
       const result = maskText(seg.text, [forcedSpan]);
       out.set(seg.id, result.text);
       total += result.applied.length;
+      options.onProgress?.(i + 1, segments.length);
       continue;
     }
 
-    // 일반 segment — detect + 인라인 라벨("성명: 조성도") 패턴 합쳐서 마스킹.
-    const detected = detectKoreanPII(seg.text);
+    // 일반 segment — background detect (정규식 + NER 합산) + 인라인 라벨 + nameHintOnly 보강.
+    const detected = (await requestDetect(seg.text)).spans;
     const inline = findInlineLabels(seg.text).map<PIISpan>((m) => ({
       start: m.valueStart,
       end: m.valueEnd,
@@ -55,11 +71,13 @@ export function maskSegments(segments: ReadonlyArray<Segment>): MaskSegmentsResu
     const all = [...detected, ...inline, ...contextual];
     if (all.length === 0) {
       out.set(seg.id, seg.text);
+      options.onProgress?.(i + 1, segments.length);
       continue;
     }
     const result = maskText(seg.text, all);
     out.set(seg.id, result.text);
     total += result.applied.length;
+    options.onProgress?.(i + 1, segments.length);
   }
   return { maskedMap: out, totalSpans: total };
 }
