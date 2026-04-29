@@ -5,6 +5,76 @@
 
 ---
 
+## [1.2.0] — 2026-04-29
+
+온디바이스 NER 광고와 실 동작이 일치하도록 호출자 라우팅 통합 + perplexity 후킹
+강건성 보강 + 첫 paste 모델 워밍업. 회귀 테스트 240 → 267 통과.
+
+### Added (신규 기능)
+
+- **NER 통합 (Finding 3 해결)** — paste 후킹과 사이드패널 파일 마스킹이
+  background `DETECT_REQUEST`로 라우팅되어 정규식 + AEGIS NER을 실제로 합산.
+  v1.1.0까지는 호출자가 정규식만 호출해 50MB 모델 다운로드가 효과 0이었음.
+  자연 문장 안 사람 이름(예: "조성도가 작성한 보고서") 보강이 핵심 가치.
+- **모델 사전 워밍업** — content script가 페이지 진입 시 background에 dummy
+  detect 1회 보내 offscreen이 IndexedDB에서 모델을 메모리로 사전 로드.
+  사용자의 첫 paste에서 모델 로드 ~3-5s wait 제거. 미설치 사용자는 정규식
+  폴백이라 영향 없음.
+- **NER 후처리 — SURNAME+GIVENNAME 머지 + 조사 trim** — AEGIS는 한국어
+  이름을 두 라벨로 분리 출력(예: "조성도" → "조"+"성도")하므로 인접 머지
+  후처리 필수. 매치 끝이 조사·존칭("의","가","씨","님" 등)이면 한 글자
+  trim해서 마스킹 결과 텍스트 무결성 보장.
+- **AEGIS PII 자연 문장 평가 자동화** — `scripts/eval-aegis/run.mjs` +
+  `cases.json`. 36 cases 회귀 측정 결과 person_name F1=0.966, FP 0/8,
+  평균 추론 5ms/case. 자세한 결과: [docs/EVAL_AEGIS_v1.2.md](docs/EVAL_AEGIS_v1.2.md).
+- **`shared/lib/detect-client`** — content/sidepanel이 사용하는 background
+  DETECT_REQUEST 클라이언트. timeout/runtime 부재/ERROR 모두 정규식 폴백
+  으로 다단계 안전망.
+
+### Changed (개선)
+
+- **paste listener를 window+document 양쪽 capture phase에 등록 (Finding 2 보강)**
+  — `defaultPrevented` 가드로 중복 처리 방지. window가 더 외부라 SPA의
+  capture handler에 가려지지 않으며 document fallback이 legacy 환경 대비.
+  (기존 PR #15에서 contenteditable 매처는 이미 적용 + 실 perplexity에서
+  동작 검증 완료.)
+- **manifest host_permissions에 `https://perplexity.ai/*` (root) 추가** —
+  사용자가 www 없이 직접 접근 시 redirect 전에도 content script가 inject되도록.
+- **MIN_CONFIDENCE 0.5 → 0.3** — 자연 문장 paste에서 모델 신뢰도가 0.5에
+  못 미치는 케이스 다수 확인. 부정 케이스 FP 0/8로 안전성 검증.
+- **사이드패널 파일 마스킹이 segment-level 진행률** — `mask-segments`가
+  비동기로 변환되며 `onProgress` 콜백 노출. 파일 큐가 50→80% 사이를 보간.
+- **vite/playwright config을 env override 가능하게** — `VITE_PORT`,
+  `VITE_HMR_PORT`, `PLAYWRIGHT_BASE_URL` 환경변수로 평행 worktree 지원.
+
+### Fixed (버그 수정)
+
+- **README/UI 광고 ↔ 실 동작 불일치 (Finding 3)** — 위 NER 통합으로 해결.
+- **Playwright e2e의 closed Shadow DOM piercing 시도** — closed shadow는
+  의도된 보안 격리이므로 host element 존재 + closed mode lock으로 검증
+  변경. 사이드패널 사람 이름 selector를 `switch` role로 좁혀 combobox
+  중복 매치 회피.
+
+### Verified
+
+- vitest **267 passed** (기존 242 + 신규 25: NER 후처리 12, detect-client
+  6, mask-segments 7).
+- Playwright e2e **9 passed** (paste-modal smoke 2 + screenshots 7).
+- 실 브라우저(perplexity.ai) — Claude in Chrome MCP로 paste 시뮬레이션:
+  `defaultPrevented: true`, shadow host mount 확인. 자세한 검증 기록:
+  [docs/QA_VERIFICATION_v1.2.md](docs/QA_VERIFICATION_v1.2.md).
+
+### Known limitations
+
+- 첫 paste의 모델 워밍업은 페이지 진입 시점에 시작. 페이지 진입 직후 즉시
+  paste하면 워밍업 미완료 상태에서 정규식 폴백으로 응답. 다음 paste부터는
+  모델 적용. 사용자 인지 거의 없음.
+- 번호류(mobile/email/rrn/card/account 등)는 AEGIS가 학습 분포 외라 NER이
+  추가 가치 없음. 정규식 단독이 우월. NER + 정규식 합산이 v1.2의 핵심
+  가치(자연 문장 안 사람 이름 보강).
+
+---
+
 ## [1.1.0] — 2026-04-29
 
 마스킹 정확도 대폭 개선 + 모든 주요 파일 포맷에서 표 헤더 인식. 회귀 테스트
