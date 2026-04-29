@@ -37,6 +37,8 @@ declare -a ALLOW=(
   # Test fixture accounts
   '농협 100-12-345678'    # regression fixture
   '하나 100-20-30405'     # detector docstring 3-2-5-1 example
+  # Demo fixture (sidepanel "예시 파일로 시험해보기")
+  '신한 110-123-456789'
 )
 
 found=0
