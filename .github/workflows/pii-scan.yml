@@ -1,0 +1,76 @@
+name: PII scan
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  scan:
+    name: Scan added lines for Korean PII patterns
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine diff range
+        id: diff
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch origin ${{ github.base_ref }} --depth=50
+            echo "base=origin/${{ github.base_ref }}" >> "$GITHUB_OUTPUT"
+          else
+            # On push: diff against the previous main tip.
+            echo "base=HEAD~1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Scan added lines
+        run: |
+          set -e
+          BASE="${{ steps.diff.outputs.base }}"
+          # Only inspect lines added in this change.
+          ADDED=$(git diff "${BASE}...HEAD" -- \
+            '*.ts' '*.tsx' '*.js' '*.jsx' '*.md' '*.json' \
+            '*.yml' '*.yaml' '*.txt' '*.html' '*.toml' \
+            ':(exclude)scripts/pre-commit-pii.sh' \
+            ':(exclude).github/workflows/pii-scan.yml' \
+            | grep -E '^\+[^+]' || true)
+
+          if [ -z "$ADDED" ]; then
+            echo "✓ No code changes to scan."
+            exit 0
+          fi
+
+          PATTERNS=(
+            '01[016789]-[0-9]{4}-[0-9]{4}'
+            '[0-9]{6}-[1-4][0-9]{6}'
+            '(국민|신한|우리|하나|농협|기업|수협|새마을|우체국)[[:space:]]+[0-9]{3,6}-[0-9]{2,6}-[0-9]{3,7}'
+          )
+
+          # Synthetic placeholders (kept in sync with scripts/pre-commit-pii.sh).
+          ALLOW='010-1234-5678|010-2345-6789|010-3456-7890|010-0000-0000|010-1111-1111|010-1111-2222|010-2222-2222|010-3333-3333|010-3333-4444|010-4444-4444|010-5555-5555|010-5555-6666|010-6666-6666|010-7777-7777|010-8888-8888|010-9999-9999|900101-1234567|900101-1234568|950510-1234567|1002-100-100100|1002-200-200200|100-200300-40500|100-200-30040|100200-30-040506|100-200304-05-060|333-333333-33333|100-12-345678|296-18-09507'
+
+          found=0
+          for pattern in "${PATTERNS[@]}"; do
+            hits=$(printf '%s' "$ADDED" | grep -oE "$pattern" | grep -vE "$ALLOW" || true)
+            if [ -n "$hits" ]; then
+              echo "::error::PII pattern matched in added lines: $pattern"
+              echo "$hits" | sort -u | head -20
+              found=1
+            fi
+          done
+
+          if [ "$found" = "1" ]; then
+            echo ""
+            echo "Real PII patterns detected in added lines."
+            echo "Use synthetic placeholders, or add the new fake to ALLOW in"
+            echo "  - .github/workflows/pii-scan.yml"
+            echo "  - scripts/pre-commit-pii.sh"
+            exit 1
+          fi
+
+          echo "✓ No PII patterns detected in added lines."

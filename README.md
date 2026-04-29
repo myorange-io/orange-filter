@@ -111,6 +111,7 @@ bun run build       # tsc + vite + Tesseract self-host + 아이콘 생성
 | `bun run test` | Vitest 240 tests |
 | `bun run e2e` | Playwright headless smoke |
 | `bun run setup:tesseract` | Tesseract worker/wasm/lang 다운로드 |
+| `bun run install:hooks` | pre-commit PII 차단 훅 설치 (clone 직후 1회) |
 
 ## 아키텍처
 
