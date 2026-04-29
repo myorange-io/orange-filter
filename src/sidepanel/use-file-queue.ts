@@ -58,10 +58,15 @@ async function processItem(
   update(item.id, { progress: 35 });
 
   // 2) 검사 + 마스킹
-  // S12 v1: 정규식만 (sidepanel에서 동기 동작). S13+에서 background DETECT_REQUEST로 라우팅
-  // 하여 모델 결과까지 합치도록 확장.
+  // v1.2: maskSegments가 background DETECT_REQUEST로 라우팅하여 정규식 + NER 합산.
+  // 진행률은 segment-level onProgress로 50→80% 사이에 보간.
   update(item.id, { status: 'detecting', progress: 50 });
-  const { maskedMap, totalSpans } = maskSegments(parsed.segments);
+  const { maskedMap, totalSpans } = await maskSegments(parsed.segments, {
+    onProgress: (done, total) => {
+      const pct = total === 0 ? 80 : 50 + Math.round((done / total) * 30);
+      update(item.id, { progress: pct });
+    },
+  });
   update(item.id, { progress: 80 });
 
   // 3) 익스포트

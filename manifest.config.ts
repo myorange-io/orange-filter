@@ -8,6 +8,9 @@ const LLM_HOSTS = [
   'https://claude.ai/*',
   'https://gemini.google.com/*',
   'https://www.perplexity.ai/*',
+  // www 없이 직접 접근하는 경우도 매처에 포함 (사용자가 perplexity.ai 입력 시 www로 redirect되지만,
+  // 일부 환경에서 redirect 전 content script가 실행되도록 root host도 등록).
+  'https://perplexity.ai/*',
   'https://*.orangeimpact.kr/*',
 ];
 
