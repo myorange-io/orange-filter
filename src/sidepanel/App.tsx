@@ -20,6 +20,7 @@ import {
   type Settings,
 } from '@/shared/settings';
 import type { MaskMode, PIICategory } from '@/shared/types';
+import { makeDemoHwpx } from './demo-fixture';
 import { FileDropZone } from './FileDropZone';
 import { FileQueueList } from './FileQueueList';
 import { GateScreen, useModelCached } from './GateScreen';
@@ -160,13 +161,30 @@ export function App() {
                 <div className="text-[12.5px] font-semibold">처음이라면</div>
                 <button
                   type="button"
-                  onClick={() =>
-                    toast({
-                      title: '예시 데이터 — 준비 중',
-                      description:
-                        '다음 버전에서 합성 결산공시 샘플로 안전하게 시험해볼 수 있어요.',
-                    })
-                  }
+                  onClick={async () => {
+                    try {
+                      const file = await makeDemoHwpx();
+                      const { rejected } = queue.add([file]);
+                      if (rejected.length > 0) {
+                        toast({
+                          title: '예시 추가에 실패했어요',
+                          description:
+                            '큐를 비우거나 잠시 후 다시 시도해 주세요.',
+                        });
+                        return;
+                      }
+                      toast({
+                        title: '예시 파일을 큐에 추가했어요',
+                        description:
+                          '가짜 후원자 명단·연락처가 가려지는 걸 확인해 보세요. 조직명·일반어는 그대로 남습니다.',
+                      });
+                    } catch {
+                      toast({
+                        title: '예시 파일 생성 실패',
+                        description: '잠시 후 다시 시도해 주세요.',
+                      });
+                    }
+                  }}
                   className="text-[12.5px] text-accent-foreground underline underline-offset-2 hover:no-underline"
                 >
                   예시 파일로 한 번 시험해보기 →
