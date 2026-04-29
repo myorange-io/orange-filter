@@ -123,34 +123,11 @@ const DRIVER_LICENSE_PATTERN = /\b(?:1[1-9]|2[0-8])-\d{2}-\d{6}-\d{2}\b/g;
 const CORPORATE_REG_PATTERN = /\b\d{6}-\d{7}\b/g;
 
 // =============================================================================
-// P1-2: 조직명 (○○대, ○○법인, ○○재단 등)
+// P1-2: 조직명 — v1.3에서 제거.
 // =============================================================================
-// 한국어 + 영문 약어 (KAIST, POSTECH, UNIST, GIST, DGIST 등) 모두 포괄.
-// 본 패턴은 "반드시 조직"인 키워드 suffix 다음에서만 매치 — FP 최소화.
-const ORGANIZATION_SUFFIXES = [
-  '대학교','대학원','대학','법인','재단','학원','연구소','연구원',
-  '위원회','협의회','협회','기관','학회','조합','상사','은행','공사',
-  '센터','회사','병원','학교','복지관','진흥원','개발원','진흥회',
-];
-const ORGANIZATION_SUFFIX_PATTERN = ORGANIZATION_SUFFIXES.join('|');
-const ORGANIZATION_KOREAN = new RegExp(
-  `(?<![가-힣])[가-힣]{2,8}(?:${ORGANIZATION_SUFFIX_PATTERN})(?![가-힣])`,
-  'g',
-);
-// organization 일반명사 stoplist — 양식 안내문에서 자주 등장.
-const ORGANIZATION_STOPLIST: ReadonlySet<string> = new Set([
-  '공익법인','비영리법인','사단법인','재단법인','학교법인','종교법인',
-  '의료법인','특수법인','외국법인','영리법인',
-  '비영리재단','비영리단체','비영리법인',
-  '공시 표준서식', '결산공시',
-]);
-// 영문 약어 대학·연구소 (KAIST/POSTECH/UNIST 등)
-const ORGANIZATION_ACRONYM_KO_INSTITUTIONS = new Set([
-  'KAIST','POSTECH','UNIST','GIST','DGIST','KIST','ETRI','KISTI',
-  'SNU','KU','YU','HU','SKKU','CAU','EWHA','HUFS','DGU','KHU','PNU',
-  'KITRI','KISA','NIA','KOSEN',
-]);
-const ACRONYM_PATTERN = /\b[A-Z]{3,8}\b/g;
+// 사용자 정의(2026-04-29): 조직명은 모두 PII 마스킹 대상에서 제외한다.
+// 한국사회적기업진흥원·조달청·협동조합 등 공공·사기업·일반 단체 모두 PII 아님.
+// 정규식 detector 제거 + NER ORG/COMPANY 라벨도 mapLabel에서 null 매핑 (model-runtime.ts).
 
 // =============================================================================
 // P2-1: 은행 prefix 기반 계좌번호 (정규식 패턴 화이트리스트 미포함 형식 보강)
@@ -260,6 +237,8 @@ const TITLES = [
   '팀장','회장','사장','이사','국장','선생','박사','단장','님','씨',
 ];
 const TITLE_PATTERN = TITLES.join('|');
+// 직책 단독 매치 차단용 (사용자 정의: 직책은 PII가 아님 → "박사"·"교수"가 NAME 검출에 잡히면 안 됨).
+const TITLE_SET: ReadonlySet<string> = new Set(TITLES);
 // "팀장님" 다음에 조사("께","이","은")가 한글로 붙는 게 흔하므로 trailing boundary 제외.
 // 단성(1자) 또는 복성(2자) + 1~3자 이름 + (선택적) 존칭/직책.
 // 1~3자 이름 허용: 단성+1자(김민) ~ 단성+3자(김아무개), 복성+1자 ~ 복성+3자.
@@ -610,93 +589,8 @@ function detectCorporateRegistration(text: string): RawMatch[] {
   return out;
 }
 
-function detectKoreanName(text: string): RawMatch[] {
-  const out: RawMatch[] = [];
-  // 직책/존칭 동반 — 높은 confidence
-  for (const m of text.matchAll(NAME_WITH_TITLE)) {
-    if (m.index === undefined) continue;
-    out.push({
-      start: m.index,
-      end: m.index + m[0].length,
-      text: m[0],
-      category: 'person_name',
-      confidence: 0.85,
-    });
-  }
-  // bare 이름 — 3자만, stoplist 적용, 조사 어미 차단.
-  for (const m of text.matchAll(NAME_BARE)) {
-    if (m.index === undefined) continue;
-    const matched = m[0];
-    if (NAME_BARE_STOPLIST.has(matched)) continue;
-    // 마지막 글자가 명백한 조사면 단어+조사 — name 아님.
-    // '만'/'도'는 조사이기도 하지만 한국 이름 끝글자로도 흔함(지석만, 김민도) → 제외.
-    const last = matched[matched.length - 1]!;
-    if ('을를이가은는의에께와과로'.includes(last)) continue;
-    out.push({
-      start: m.index,
-      end: m.index + matched.length,
-      text: matched,
-      category: 'person_name',
-      confidence: 0.4,
-    });
-  }
-  // P3: 파일명 internal token — "[이름][이력서|사본|...]" 구분자 없이 붙은 경우.
-  for (const m of text.matchAll(FILENAME_NAME_TOKEN)) {
-    if (m.index === undefined) continue;
-    out.push({
-      start: m.index,
-      end: m.index + m[0].length,
-      text: m[0],
-      category: 'person_name',
-      confidence: 0.7,
-    });
-  }
-  // P2-2: 로마자 한국 이름 (Lee/Kim/... + CamelCase 또는 그 역순).
-  for (const m of text.matchAll(ROMAN_NAME_PATTERN)) {
-    if (m.index === undefined) continue;
-    if (ROMAN_NAME_STOPLIST.has(m[0])) continue;
-    out.push({
-      start: m.index,
-      end: m.index + m[0].length,
-      text: m[0],
-      category: 'person_name',
-      confidence: 0.5,
-    });
-  }
-  return out;
-}
-
-// =============================================================================
-// P1-2: 조직명 detector
-// =============================================================================
-function detectOrganization(text: string): RawMatch[] {
-  const out: RawMatch[] = [];
-  // 한국어: ○○대학교, ○○법인, ○○재단 등
-  for (const m of text.matchAll(ORGANIZATION_KOREAN)) {
-    if (m.index === undefined) continue;
-    if (ORGANIZATION_STOPLIST.has(m[0])) continue;
-    out.push({
-      start: m.index,
-      end: m.index + m[0].length,
-      text: m[0],
-      category: 'organization',
-      confidence: 0.7,
-    });
-  }
-  // 영문 약어 (KAIST, POSTECH 등) — 화이트리스트 매치만.
-  for (const m of text.matchAll(ACRONYM_PATTERN)) {
-    if (m.index === undefined) continue;
-    if (!ORGANIZATION_ACRONYM_KO_INSTITUTIONS.has(m[0])) continue;
-    out.push({
-      start: m.index,
-      end: m.index + m[0].length,
-      text: m[0],
-      category: 'organization',
-      confidence: 0.85,
-    });
-  }
-  return out;
-}
+// 한국 이름 정규식 detector는 detectContextualName으로 일원화 (nameHintOnly 셀 한정).
+// 일반 본문의 사람 이름은 NER이 책임. 조직명 detector는 v1.3에서 제거 — 사용자 정의상 PII 아님.
 
 // =============================================================================
 // P2-1: 은행 prefix 계좌번호 detector
@@ -771,23 +665,29 @@ function dedupe(matches: RawMatch[]): RawMatch[] {
 }
 
 /**
- * 컨텍스트 제한 2자 한국 이름 detector — nameHintOnly 컬럼(신분증/통장사본/이력서 등)
- * 셀에서만 호출. 일반 텍스트에서는 사용 금지 (FP 압도적).
+ * 한국 이름 정규식 detector — nameHintOnly 컬럼(신분증/통장사본/이력서/후원자 명단 등)
+ * 셀에서만 호출. 일반 본문에서는 사용 금지 (NAME_BARE의 일반어 FP가 압도적).
  *
- * 매치 조건:
- * - 양쪽이 한글/영문/숫자가 아닌 boundary (`_`, `-`, `.`, 공백 등)
- * - top 50 surname + 1글자 한글
- * - stoplist 미포함
- * - 마지막 글자가 명백한 조사 아님
+ * v1.3: 사용자 정의에 따라 정규식 NAME 검출을 hintOnly cell로 일원화.
+ * 일반 본문의 사람 이름은 NER(AEGIS 한국어 mBERT)이 컨텍스트 기반으로 책임진다.
+ *
+ * 포함 검출:
+ *   - NAME_2CHAR_CONTEXT (boundary 제한 2자)
+ *   - NAME_4CHAR_CONTEXT (boundary 제한 4자)
+ *   - NAME_BARE          (3자 — 성+2자, stoplist + 조사 차단)
+ *   - NAME_WITH_TITLE    (직책·존칭 동반)
+ *   - FILENAME_NAME_TOKEN (파일명 internal token)
+ *   - ROMAN_NAME_PATTERN  (로마자 한국 이름)
  */
 export function detectContextualName(text: string): PIISpan[] {
   const out: PIISpan[] = [];
-  // 2자 이름
+  // 2자 이름 (boundary 제한)
   for (const m of text.matchAll(NAME_2CHAR_CONTEXT)) {
     if (m.index === undefined) continue;
     const matched = m[0];
     if (NAME_2CHAR_STOPLIST.has(matched)) continue;
     if (NAME_BARE_STOPLIST.has(matched)) continue;
+    if (TITLE_SET.has(matched)) continue; // 직책 단독 매치 차단 (박사/교수/대표 등)
     const last = matched[matched.length - 1]!;
     if ('을를이가은는의에께와과로'.includes(last)) continue;
     out.push({
@@ -805,8 +705,11 @@ export function detectContextualName(text: string): PIISpan[] {
     const matched = m[0];
     if (NAME_4CHAR_STOPLIST.has(matched)) continue;
     if (NAME_BARE_STOPLIST.has(matched)) continue;
+    if (TITLE_SET.has(matched)) continue;
     const last = matched[matched.length - 1]!;
     if ('을를이가은는의에께와과로'.includes(last)) continue;
+    // 4자 끝이 조사·접미사(도/만/씨/님)면 실제 이름은 3자 — NAME_BARE에 양보. "김상철도"·"박지영님" 등.
+    if ('도만씨님'.includes(last)) continue;
     out.push({
       start: m.index,
       end: m.index + matched.length,
@@ -816,7 +719,77 @@ export function detectContextualName(text: string): PIISpan[] {
       source: 'regex',
     });
   }
-  return out;
+  // 3자 NAME_BARE — 성+2자
+  for (const m of text.matchAll(NAME_BARE)) {
+    if (m.index === undefined) continue;
+    const matched = m[0];
+    if (NAME_BARE_STOPLIST.has(matched)) continue;
+    if (TITLE_SET.has(matched)) continue;
+    const last = matched[matched.length - 1]!;
+    if ('을를이가은는의에께와과로'.includes(last)) continue;
+    out.push({
+      start: m.index,
+      end: m.index + matched.length,
+      text: matched,
+      category: 'person_name',
+      confidence: 0.6,
+      source: 'regex',
+    });
+  }
+  // 직책/존칭 동반 — 높은 confidence
+  for (const m of text.matchAll(NAME_WITH_TITLE)) {
+    if (m.index === undefined) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'person_name',
+      confidence: 0.85,
+      source: 'regex',
+    });
+  }
+  // 파일명 internal token — "[이름][이력서|사본|...]"
+  for (const m of text.matchAll(FILENAME_NAME_TOKEN)) {
+    if (m.index === undefined) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'person_name',
+      confidence: 0.7,
+      source: 'regex',
+    });
+  }
+  // 로마자 한국 이름 (Lee/Kim/... + CamelCase 또는 그 역순)
+  for (const m of text.matchAll(ROMAN_NAME_PATTERN)) {
+    if (m.index === undefined) continue;
+    if (ROMAN_NAME_STOPLIST.has(m[0])) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'person_name',
+      confidence: 0.5,
+      source: 'regex',
+    });
+  }
+  // dedupe: 겹치는 매치 중 더 긴(또는 더 신뢰도 높은) 매치 우선.
+  // 예: "남궁아무개 교수" → NAME_4CHAR("남궁아무") + NAME_WITH_TITLE("남궁아무개") → 후자 살린다.
+  const raw: RawMatch[] = out.map((s) => ({
+    start: s.start,
+    end: s.end,
+    text: s.text,
+    category: s.category,
+    confidence: s.confidence,
+  }));
+  return dedupe(raw).map((m) => ({
+    start: m.start,
+    end: m.end,
+    text: m.text,
+    category: m.category,
+    confidence: m.confidence,
+    source: 'regex' as const,
+  }));
 }
 
 // =============================================================================
@@ -824,6 +797,11 @@ export function detectContextualName(text: string): PIISpan[] {
 // =============================================================================
 
 export function detectKoreanPII(text: string): PIISpan[] {
+  // 일반 본문에서는 사람 이름·조직명을 정규식으로 잡지 않는다.
+  //   - 조직명: 사용자 정의상 PII가 아님 (한국사회적기업진흥원·조달청·협동조합 등 모두 제외).
+  //   - 사람 이름: NER(AEGIS 한국어 mBERT)이 컨텍스트 보고 잡는다. 정규식 NAME_BARE는
+  //     "선착순/노트북/하반기/조달청" 같은 일반어 FP가 압도적이라 일반 본문에서 끔.
+  //     표 PII 컬럼(nameHintOnly)에서는 detectContextualName으로 별도 보강.
   const raw: RawMatch[] = [
     ...detectRRN(text),
     ...detectForeignerRegistration(text),
@@ -837,8 +815,6 @@ export function detectKoreanPII(text: string): PIISpan[] {
     ...detectLandline(text),
     ...detectEmail(text),
     ...detectCredential(text),
-    ...detectKoreanName(text),
-    ...detectOrganization(text),
     ...detectBankAccount(text),
   ];
   return dedupe(raw).map((m) => ({
