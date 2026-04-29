@@ -149,13 +149,13 @@ describe('detectHeaderRow with nameHintCols', () => {
 });
 
 describe('findInlineLabels', () => {
-  it('"성명: 김갑돌" 패턴 → person_name 카테고리, 값 영역 반환', () => {
-    const text = '성명: 김갑돌';
+  it('"성명: 조성도" 패턴 → person_name 카테고리, 값 영역 반환', () => {
+    const text = '성명: 조성도';
     const matches = findInlineLabels(text);
     expect(matches).toHaveLength(1);
     expect(matches[0]!.category).toBe('person_name');
     const value = text.slice(matches[0]!.valueStart, matches[0]!.valueEnd);
-    expect(value).toBe('김갑돌');
+    expect(value).toBe('조성도');
   });
 
   it('여러 라벨이 줄바꿈으로 구분된 경우', () => {
