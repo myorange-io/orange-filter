@@ -20,7 +20,8 @@ if (sampleEl) sampleEl.textContent = SAMPLE_TEXT;
 
 // ① 직접 트리거
 document.getElementById('trigger-direct')?.addEventListener('click', () => {
-  showPasteModal({
+  // showPasteModal은 background DETECT_REQUEST를 await하므로 비동기.
+  void showPasteModal({
     text: SAMPLE_TEXT,
     onConfirm: (masked) => {
       // eslint-disable-next-line no-console
@@ -80,7 +81,7 @@ document.getElementById('copy-sample')?.addEventListener('click', async () => {
 
 // ③ ChatGPT 어댑터를 hostname 매처 우회로 직접 설치
 chatgptAdapter.install((ctx) => {
-  showPasteModal({
+  void showPasteModal({
     text: ctx.text,
     onConfirm: (masked) => ctx.replaceWith(masked),
     onCancel: () => ctx.cancel(),

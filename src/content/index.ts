@@ -31,7 +31,9 @@ if (adapter) {
       ctx.proceedAsIs();
       return;
     }
-    showPasteModal({
+    // showPasteModal은 background DETECT_REQUEST를 await하므로 비동기.
+    // paste handler는 이미 preventDefault 했으므로 modal이 늦게 떠도 입력엔 안 들어감.
+    void showPasteModal({
       text: ctx.text,
       onConfirm: (masked) => ctx.replaceWith(masked),
       onCancel: () => ctx.cancel(),
@@ -46,7 +48,7 @@ window.addEventListener('oi-filter:show-paste-modal', (e) => {
   const ev = e as CustomEvent<TriggerDetail>;
   const detail = ev.detail;
   if (!detail) return;
-  showPasteModal({
+  void showPasteModal({
     text: detail.text,
     detectResult: detail.detectResult,
     onConfirm: (masked) => detail.onConfirm?.(masked),
