@@ -8,7 +8,17 @@
 ## [1.3.0] — 2026-04-29
 
 PII 정의 정정(조직명·일반어 미검출) + 모델 설치 게이트 UI + OOXML 메타데이터
-누출 차단 + XLSX 코멘트/PDF metadata 마스킹 + 영문명 통일. 회귀 테스트 271 → 286(2 skip) 통과.
+누출 차단 + XLSX 코멘트/PDF metadata 마스킹 + 이미지 EXIF 마스킹 + 영문명 통일.
+회귀 테스트 271 → 295(2 skip) 통과.
+
+### Removed (정리)
+
+- **ModelManager 컴포넌트 삭제** — GateScreen 도입 후 모델 미설치 시 입력 UI
+  자체가 차단되므로 ModelManager가 렌더되는 시점엔 항상 cached 상태. 단일 모델
+  (TIER1_DEFAULT) 환경에서 multi-model loop·진행률·취소 UI는 dead code였고,
+  설치 상태는 footer "🟢 AI 보호 켜짐" 점이 이미 표시. `src/sidepanel/ModelManager.tsx`
+  + App.tsx의 inline `<section>` 제거. `ALL_MODELS`/`TIER2_OPTIONS`는 background에서
+  사용 + v2 멀티 모델 자리로 보존.
 
 ### Changed (정의 정정)
 
@@ -38,6 +48,12 @@ PII 정의 정정(조직명·일반어 미검출) + 모델 설치 게이트 UI +
 - **PDF 메타데이터 마스킹** — `parsePdf`가 정보 dictionary(Title/Author/Subject/Keywords/
   Creator/Producer)를 segment로 노출하고 `exportPdf`가 pdf-lib `setTitle`/`setAuthor`/...로
   새 PDF에 마스킹 적용. PDF reader의 "Properties" 탭에 PII 누출되던 결함 차단.
+- **이미지 EXIF/XMP/IPTC 텍스트 메타데이터 마스킹** — `parseImage`가 OCR 본문과 함께
+  EXIF Artist/Copyright/ImageDescription/UserComment, XMP dc:creator/rights/description,
+  IPTC by-line/caption/credit을 segment로 노출. `exportImage`가 마스킹된 메타데이터를
+  출력 .txt 끝 `[이미지 메타데이터]` 섹션에 추가해 사용자가 원본 이미지 공유 전 인지
+  가능하게 함. 의존성: `exifr` 7.1.3 (MIT, ~75KB lazy chunk). GPS 좌표는 위치 카테고리
+  부재로 v1.3 범위 밖 — 별도 슬라이스에서 처리.
 - **이름 통일 (Orange Filter)** — 모든 한국어 문서·UI에서 "오렌지 필터" 표기를 영문
   "Orange Filter"로 통일. manifest.config.ts·README·docs·sidepanel 등 11개 파일.
 - **모델 설치 게이트 UI** — 사이드패널 첫 진입 시 모델 미설치면 입력 UI 대신
@@ -61,6 +77,9 @@ PII 정의 정정(조직명·일반어 미검출) + 모델 설치 게이트 UI +
 - **`src/sidepanel/parsers/parsers.test.ts`** — XLSX `wb.Props`/`Custprops`/`cell.c`
   추출 + round-trip 마스킹 검증. PDF 단위 테스트는 vitest node 환경의 pdfjs-dist DOM
   의존성으로 skip 처리, e2e 회귀에 의존.
+- **`src/sidepanel/parsers/image.test.ts`** (신규) — `exifMetaToSegments` 순수 함수
+  단위 검증(허용 키 필터링, NFC 정규화, 빈 값 제외) + `exportImage` footer 출력
+  검증. parseImage 자체는 Tesseract worker가 vitest node에서 미작동이라 단위 미커버.
 
 ---
 
