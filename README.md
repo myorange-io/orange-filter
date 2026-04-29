@@ -1,4 +1,4 @@
-# Orange Filter v1.3.0 소개
+# Orange Filter v1.3.1 소개
 
 LLM에 텍스트를 붙여넣거나 파일을 올리기 전에, 사용자의 PC 안에서 개인정보를 가려내고 마스킹하는 Chrome 확장을 소개합니다.
 
@@ -108,7 +108,7 @@ bun run build       # tsc + vite + Tesseract self-host + 아이콘 생성
 |------|------|
 | `bun run dev` | Vite dev 서버 + HMR |
 | `bun run build` | production 빌드 |
-| `bun run test` | Vitest 295 tests (293 통과 + 2 PDF skip) |
+| `bun run test` | Vitest 291 tests (289 통과 + 2 PDF skip) |
 | `bun run e2e` | Playwright headless smoke |
 | `bun run setup:tesseract` | Tesseract worker/wasm/lang 다운로드 |
 | `bun run install:hooks` | pre-commit PII 차단 훅 설치 (clone 직후 1회) |
@@ -188,4 +188,4 @@ Orange Filter는 NPO 현장의 정형 양식 처리에 초점을 맞추면서도
 ---
 
 작성자: 마이오렌지 / 오렌지임팩트
-릴리스: v1.3.0 — 2026-04-30
+릴리스: v1.3.1 — 2026-04-30
