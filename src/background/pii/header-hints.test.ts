@@ -81,11 +81,11 @@ describe('detectHeaderRow', () => {
   });
 
   it('첫 행이 메모/제목이고 두 번째 행이 헤더', () => {
-    // sample/NPO 실 데이터 파일과 동일 구조
+    // 첫 행에 메모/제목이 있고 두 번째 행이 진짜 헤더인 NPO 양식 구조
     const rows = [
       ['4/3까지 1차 취합', '', '', ''],
       ['no.', '소속', '성명', '연락처'],
-      ['1', 'KAIST', '홍길동', '010-0'],
+      ['1', '단체A', '홍길동', '010-0'],
     ];
     const result = detectHeaderRow(rows);
     expect(result?.rowIndex).toBe(1);

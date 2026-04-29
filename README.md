@@ -37,7 +37,7 @@ LLM에 텍스트를 붙여넣거나 파일을 올리기 전에, 사용자의 PC 
 - **형태 보존** — `010-XXXX-XXXX`처럼 길이와 포맷 유지
 - **태그 치환** — `[휴대폰]`, `[이름]` 같은 의미 라벨
 - **가짜 데이터** — `010-0000-0000` 같은 placeholder
-- **부분 가림 (partial)** — 사람 이름 한정. `조성도 → 조O도`, `김민 → 김O`, `남궁아무 → 남OO수`
+- **부분 가림 (partial)** — 사람 이름 한정. `조성도 → 조O도`, `김민 → 김O`, `남궁아무 → 남OO무`
 - **완전 제거** — 빈 문자열
 
 ## 동작 방식
@@ -51,18 +51,18 @@ LLM에 텍스트를 붙여넣거나 파일을 올리기 전에, 사용자의 PC 
 
 ```
 no.   소속        성명     연락처            이메일                  계좌정보
-1     KAIST       홍길동   010-1234-5678     hong@example.com     우리 1002-100-100100
-2     경희대       김철수   010-2345-6789     kim@example.com          우리 1002-200-200200
-3     동국대       박영     010-3456-7890     park@example.com      하나 100-200300-40500
+1     단체A       홍길동   010-1234-5678     hong@example.com         우리 1002-100-100100
+2     단체B       김철수   010-2345-6789     kim@example.com          우리 1002-200-200200
+3     단체C       박영     010-3456-7890     park@example.com         하나 333-333333-33333
 ```
 
 ## 마스킹된 텍스트
 
 ```
 no.   소속        성명     연락처            이메일                       계좌정보
-1     KAIST       ●●●     010-XXXX-XXXX     k*******@kaist.ac.kr         우리 100X-XXX-XXX259
-2     경희대       ●●●     010-XXXX-XXXX     w****@khu.ac.kr              우리 100X-XXX-XXX676
-3     동국대       ●●      010-XXXX-XXXX     c******@dongguk.edu          하나 288-XXXXXX-XX507
+1     단체A       ●●●     010-XXXX-XXXX     h***@example.com             우리 100X-XXX-XXX100
+2     단체B       ●●●     010-XXXX-XXXX     k**@example.com              우리 100X-XXX-XXX200
+3     단체C       ●●      010-XXXX-XXXX     p***@example.com             하나 333-XXXXXX-XX333
 ```
 
 `소속`/`성명`/`연락처`/`이메일`/`계좌정보` 헤더가 자동 인식되어 같은 컬럼의 모든 데이터 셀이 적절한 카테고리로 마스킹됩니다. 2글자 이름(`박영`)도 컨텍스트로 처리되며, 파일명 컬럼(신분증·통장사본·이력서)에서는 컨텍스트 제한 매칭이 추가로 활성화됩니다.
@@ -111,6 +111,7 @@ bun run build       # tsc + vite + Tesseract self-host + 아이콘 생성
 | `bun run test` | Vitest 240 tests |
 | `bun run e2e` | Playwright headless smoke |
 | `bun run setup:tesseract` | Tesseract worker/wasm/lang 다운로드 |
+| `bun run install:hooks` | pre-commit PII 차단 훅 설치 (clone 직후 1회) |
 
 ## 아키텍처
 
