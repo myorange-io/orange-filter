@@ -5,6 +5,54 @@
 
 ---
 
+## [1.3.0] — 2026-04-29
+
+PII 정의 정정(조직명·일반어 미검출) + 모델 설치 게이트 UI + OOXML 메타데이터
+누출 차단. 회귀 테스트 271 → 282 통과.
+
+### Changed (정의 정정)
+
+- **조직명은 PII 아님** — 한국사회적기업진흥원·조달청·협동조합·교육센터 등 모든
+  조직명을 마스킹 대상에서 제외. `ORGANIZATION_KOREAN`/`ACRONYM` 정규식 detector
+  제거 + NER `ORG`/`COMPANY` 라벨도 `mapLabel`에서 null 매핑. 사용자 정의에 따라
+  공공·사기업·일반 단체를 구분하지 않음.
+- **일반 본문에서 정규식 NAME 검출 OFF** — "선착순/노트북/하반기/조달청"
+  같은 일반어 false positive가 압도적이라 정규식 NAME 검출을 표 PII 컬럼
+  (`nameHintOnly`)에 한정. 일반 본문의 사람 이름은 NER(AEGIS 한국어 mBERT)이
+  컨텍스트 보고 책임. `detectKoreanName`/`detectOrganization` 함수 제거,
+  `detectContextualName`으로 NAME 검출 일원화 + dedupe + 직책(`박사`·`교수`)
+  단독 차단.
+
+### Added (신규 기능)
+
+- **HWPX `Preview/PrvText.txt` 마스킹** — 본문(section*.xml)을 가렸어도 미리보기
+  평문이 zip 안에 그대로 남아 파일 미리보기에 PII 노출되던 결함 해결. `parseHwpx`/
+  `exportHwpx` 모두 PrvText.txt를 single segment로 처리.
+- **OOXML `docProps/*.xml` 마스킹** — DOCX/PPTX의 `docProps/core.xml`/`app.xml`/
+  `custom.xml`(작성자·제목·키워드·회사·lastModifiedBy)을 마스킹 파이프라인에 포함.
+  `src/sidepanel/parsers/ooxml-docprops.ts` 공통 helper. 본문 가려도 메타데이터에
+  PII가 남던 누출 차단. (XLSX는 SheetJS 통합 별도 PR.)
+- **모델 설치 게이트 UI** — 사이드패널 첫 진입 시 모델 미설치면 입력 UI 대신
+  GateScreen(welcome/downloading/error) 5 화면 시안. 사용자 정의(A 모드) — AI 모델
+  없이는 부정확한 보호로 거짓 안심을 주지 않음. 시안 [docs/ux-gate-mockup.html](docs/ux-gate-mockup.html).
+- **합성 결산공시 데모 fixture** — "예시 파일로 한 번 시험해보기" 1-click. JSZip으로
+  minimal HWPX 즉석 생성 → 큐 추가. 가짜 PII가 가려지는 동시에 조직명·일반어는
+  그대로 남아 v1.3 정의를 사용자에게 시연.
+- **푸터 모델 상태 점** — 사이드패널 메인에 "🟢 AI 보호 켜짐" 작은 점. 게이트는
+  통과 후 다시 보이지 않음.
+
+### Fixed (회귀 잠금)
+
+- **`tests/hwp-roundtrip.test.ts`** — `sample/1.hwpx` 명시 회귀: PrvText.txt segment
+  포함 + 조직명·일반어("한국사회적기업진흥원"·"선착순"·"노트북" 등 10종)가 정규식
+  detect로 안 잡힘 검증.
+- **`src/sidepanel/parsers/ooxml-docprops.test.ts`** (신규) — docProps 추출/치환/
+  XML 이스케이프 보존 7 케이스.
+- **`src/sidepanel/demo-fixture.test.ts`** (신규) — 데모 HWPX 구조·MIME·합성 PII
+  존재 4 케이스.
+
+---
+
 ## [1.2.0] — 2026-04-29
 
 온디바이스 NER 광고와 실 동작이 일치하도록 호출자 라우팅 통합 + perplexity 후킹
