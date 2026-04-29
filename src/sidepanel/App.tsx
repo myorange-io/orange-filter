@@ -1,7 +1,7 @@
 // 사이드 패널 메인 — 타이틀 → 파일 업로드/큐 → 필터·설정 탭 순서.
 
 import { useEffect, useState } from 'react';
-import { Lightbulb, Shield, Trash2 } from 'lucide-react';
+import { Shield, Trash2 } from 'lucide-react';
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
 import { CategoryToggleList } from '@/shared/ui/CategoryToggleList';
@@ -20,7 +20,6 @@ import {
   type Settings,
 } from '@/shared/settings';
 import type { MaskMode, PIICategory } from '@/shared/types';
-import { makeDemoHwpx } from './demo-fixture';
 import { FileDropZone } from './FileDropZone';
 import { FileQueueList } from './FileQueueList';
 import { GateScreen, useModelCached } from './GateScreen';
@@ -148,44 +147,6 @@ export function App() {
             }}
           />
           <FileQueueList items={queue.items} onRemove={queue.remove} />
-          {queue.items.length === 0 && (
-            <div className="flex items-start gap-2.5 rounded-xl border border-primary/15 bg-accent/40 p-3">
-              <Lightbulb className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" aria-hidden />
-              <div className="flex-1">
-                <div className="text-[12.5px] font-semibold">처음이라면</div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      const file = await makeDemoHwpx();
-                      const { rejected } = queue.add([file]);
-                      if (rejected.length > 0) {
-                        toast({
-                          title: '예시 추가에 실패했어요',
-                          description:
-                            '큐를 비우거나 잠시 후 다시 시도해 주세요.',
-                        });
-                        return;
-                      }
-                      toast({
-                        title: '예시 파일을 큐에 추가했어요',
-                        description:
-                          '가짜 후원자 명단·연락처가 가려지는 걸 확인해 보세요. 조직명·일반어는 그대로 남습니다.',
-                      });
-                    } catch {
-                      toast({
-                        title: '예시 파일 생성 실패',
-                        description: '잠시 후 다시 시도해 주세요.',
-                      });
-                    }
-                  }}
-                  className="text-[12.5px] text-accent-foreground underline underline-offset-2 hover:no-underline"
-                >
-                  예시 파일로 한 번 시험해보기 →
-                </button>
-              </div>
-            </div>
-          )}
           {queue.items.length > 0 && (
             <button
               type="button"
