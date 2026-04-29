@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { exportOoxmlDocProps, parseOoxmlDocProps } from './ooxml-docprops';
 import { buildNodeMeta, parseTables } from './table-walker';
 import type { ExportInput, ParseResult, Segment } from './types';
 
@@ -56,6 +57,8 @@ export async function parseDocx(file: File): Promise<ParseResult> {
     else if (meta?.nameHintOnly) seg.nameHintOnly = true;
     segments.push(seg);
   });
+  // 메타데이터(docProps/*.xml)도 마스킹 대상에 포함 — 작성자·제목·키워드 누출 차단.
+  segments.push(...(await parseOoxmlDocProps(zip)));
   return {
     segments,
     combinedText: segments.map((s) => s.text).join(' '),
@@ -77,6 +80,7 @@ export async function exportDocx(originalFile: File, masked: ExportInput): Promi
     out = out.slice(0, node.start) + encodeXmlText(replacement) + out.slice(node.end);
   }
   zip.file(DOCUMENT_PATH, out);
+  await exportOoxmlDocProps(zip, masked);
   const blob = await zip.generateAsync({ type: 'blob' });
   return new Blob([await blob.arrayBuffer()], {
     type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
