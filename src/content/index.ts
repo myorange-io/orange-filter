@@ -4,6 +4,7 @@
 import { findAdapter } from './site-adapters';
 import { showPasteModal } from './show-paste-modal';
 import { unmountShadow } from './shadow-root';
+import { requestDetect } from '@/shared/lib/detect-client';
 import { isDomainWhitelisted, loadSettings, subscribeSettings } from '@/shared/settings';
 import type { DetectResult } from '@/shared/types';
 
@@ -18,6 +19,12 @@ interface TriggerDetail {
 const adapter = findAdapter(location.hostname);
 if (adapter) {
   console.log('[npo-privacy] adapter installed:', adapter.id);
+
+  // 모델 사전 워밍업 — 페이지 진입 시 background에 dummy detect 1회 보내서
+  // offscreen이 IndexedDB에서 모델을 메모리로 사전 로드하게 한다. 첫 paste의
+  // 5s wait를 제거. 미설치 사용자는 정규식 폴백이라 영향 없음. 결과는 무시.
+  void requestDetect(' ').catch(() => { /* warmup failure 무시 */ });
+
   let whitelisted = false;
   void loadSettings().then((s) => {
     whitelisted = isDomainWhitelisted(s, location.hostname);
