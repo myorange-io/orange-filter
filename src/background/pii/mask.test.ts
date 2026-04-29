@@ -94,7 +94,7 @@ describe('applyMask shape mode', () => {
 
 describe('applyMask partial mode (사람 이름 부분 가림)', () => {
   it('3자 이름: 첫·끝 글자 노출, 가운데 O', () => {
-    expect(applyMask(span('조성도', 'person_name'), 'partial')).toBe('조O도');
+    expect(applyMask(span('김갑돌', 'person_name'), 'partial')).toBe('김O돌');
   });
 
   it('2자 이름: 성만 노출, 끝 O', () => {
@@ -102,7 +102,7 @@ describe('applyMask partial mode (사람 이름 부분 가림)', () => {
   });
 
   it('4자 이름 (복성): 첫·끝만 노출, 가운데 모두 O', () => {
-    expect(applyMask(span('남궁아무', 'person_name'), 'partial')).toBe('남OO수');
+    expect(applyMask(span('남궁아무', 'person_name'), 'partial')).toBe('남OO무');
   });
 
   it('1자: 그대로', () => {

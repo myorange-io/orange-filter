@@ -39,7 +39,7 @@ export function maskSegments(segments: ReadonlyArray<Segment>): MaskSegmentsResu
       continue;
     }
 
-    // 일반 segment — detect + 인라인 라벨("성명: 조성도") 패턴 합쳐서 마스킹.
+    // 일반 segment — detect + 인라인 라벨("성명: 김갑돌") 패턴 합쳐서 마스킹.
     const detected = detectKoreanPII(seg.text);
     const inline = findInlineLabels(seg.text).map<PIISpan>((m) => ({
       start: m.valueStart,
