@@ -1,10 +1,10 @@
-# 오렌지 필터 위협 모델 (Threat Model)
+# Orange Filter 위협 모델 (Threat Model)
 
 **버전**: 0.0.1 (M1 ship-ready)
 **최종 갱신**: 2026-04-28
 **프레임워크**: STRIDE (Spoofing / Tampering / Repudiation / Information Disclosure / Denial of Service / Elevation of Privilege)
 
-이 문서는 오렌지 필터 Chrome 확장 (MV3)의 4개 핵심 표면 — **paste hook**, **file upload**, **model fetch**, **telemetry** — 에 대한 위협 분석이다. 1.0 출시 전 자체 검토 산출물이며, 미해결 위협은 [§5 Open Items](#5-open-items)에 정리한다.
+이 문서는 Orange Filter Chrome 확장 (MV3)의 4개 핵심 표면 — **paste hook**, **file upload**, **model fetch**, **telemetry** — 에 대한 위협 분석이다. 1.0 출시 전 자체 검토 산출물이며, 미해결 위협은 [§5 Open Items](#5-open-items)에 정리한다.
 
 ---
 
@@ -29,7 +29,7 @@
 └─────────────┬─────────────────────────────────────────────┬──────────┘
               │ paste event (capture)                       │
               ▼                                             │
-┌──── content script (오렌지 필터) ───┐    ┌─── Shadow DOM (closed) ───┐
+┌──── content script (Orange Filter) ───┐    ┌─── Shadow DOM (closed) ───┐
 │  isolated world, 호스트 JS 격리    │ ──→│  Radix Dialog + 마스킹     │
 │  shadow root mount                  │    │  미리보기 — 호스트 격리   │
 └─────────────┬───────────────────────┘    └────────────────────────────┘

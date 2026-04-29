@@ -16,7 +16,7 @@ const LLM_HOSTS = [
 
 export default defineManifest({
   manifest_version: 3,
-  name: '오렌지 필터',
+  name: 'Orange Filter',
   description:
     'LLM(ChatGPT·Gemini·Claude·오렌지임팩트)에 붙여넣거나 파일을 올리기 전에, 개인정보를 이 PC 안에서 자동으로 가립니다.',
   version: '1.2.0',
@@ -27,7 +27,7 @@ export default defineManifest({
     128: 'icons/icon-128.png',
   },
   action: {
-    default_title: '오렌지 필터',
+    default_title: 'Orange Filter',
     default_icon: {
       16: 'icons/icon-16.png',
       48: 'icons/icon-48.png',

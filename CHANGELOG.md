@@ -8,7 +8,7 @@
 ## [1.3.0] — 2026-04-29
 
 PII 정의 정정(조직명·일반어 미검출) + 모델 설치 게이트 UI + OOXML 메타데이터
-누출 차단. 회귀 테스트 271 → 282 통과.
+누출 차단 + XLSX 코멘트/PDF metadata 마스킹 + 영문명 통일. 회귀 테스트 271 → 286(2 skip) 통과.
 
 ### Changed (정의 정정)
 
@@ -31,7 +31,15 @@ PII 정의 정정(조직명·일반어 미검출) + 모델 설치 게이트 UI +
 - **OOXML `docProps/*.xml` 마스킹** — DOCX/PPTX의 `docProps/core.xml`/`app.xml`/
   `custom.xml`(작성자·제목·키워드·회사·lastModifiedBy)을 마스킹 파이프라인에 포함.
   `src/sidepanel/parsers/ooxml-docprops.ts` 공통 helper. 본문 가려도 메타데이터에
-  PII가 남던 누출 차단. (XLSX는 SheetJS 통합 별도 PR.)
+  PII가 남던 누출 차단.
+- **XLSX 메타데이터 + 셀 코멘트 마스킹** — SheetJS `wb.Props`(Title/Author/Company/
+  Keywords/Comments/LastAuthor 등) + `wb.Custprops` + `cell.c[]`(셀 코멘트 author·text)을
+  마스킹 파이프라인에 포함. zip 직접 처리가 아닌 SheetJS Workbook API 통합.
+- **PDF 메타데이터 마스킹** — `parsePdf`가 정보 dictionary(Title/Author/Subject/Keywords/
+  Creator/Producer)를 segment로 노출하고 `exportPdf`가 pdf-lib `setTitle`/`setAuthor`/...로
+  새 PDF에 마스킹 적용. PDF reader의 "Properties" 탭에 PII 누출되던 결함 차단.
+- **이름 통일 (Orange Filter)** — 모든 한국어 문서·UI에서 "오렌지 필터" 표기를 영문
+  "Orange Filter"로 통일. manifest.config.ts·README·docs·sidepanel 등 11개 파일.
 - **모델 설치 게이트 UI** — 사이드패널 첫 진입 시 모델 미설치면 입력 UI 대신
   GateScreen(welcome/downloading/error) 5 화면 시안. 사용자 정의(A 모드) — AI 모델
   없이는 부정확한 보호로 거짓 안심을 주지 않음. 시안 [docs/ux-gate-mockup.html](docs/ux-gate-mockup.html).
@@ -50,6 +58,9 @@ PII 정의 정정(조직명·일반어 미검출) + 모델 설치 게이트 UI +
   XML 이스케이프 보존 7 케이스.
 - **`src/sidepanel/demo-fixture.test.ts`** (신규) — 데모 HWPX 구조·MIME·합성 PII
   존재 4 케이스.
+- **`src/sidepanel/parsers/parsers.test.ts`** — XLSX `wb.Props`/`Custprops`/`cell.c`
+  추출 + round-trip 마스킹 검증. PDF 단위 테스트는 vitest node 환경의 pdfjs-dist DOM
+  의존성으로 skip 처리, e2e 회귀에 의존.
 
 ---
 

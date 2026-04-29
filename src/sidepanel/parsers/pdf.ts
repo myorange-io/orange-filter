@@ -14,6 +14,10 @@ function pageId(idx: number): string {
   return `p${idx}`;
 }
 
+// PDF 정보 dictionary에서 추출할 텍스트 키 — 작성자·제목·키워드 등 흔한 PII 누출 채널.
+// CreationDate/ModDate 같은 timestamp는 형식이라 제외.
+const PDF_META_KEYS = ['Title', 'Author', 'Subject', 'Keywords', 'Creator', 'Producer'] as const;
+
 export async function parsePdf(file: File): Promise<ParseResult> {
   const buf = await file.arrayBuffer();
   const doc = await pdfjsLib.getDocument({ data: buf }).promise;
@@ -29,6 +33,22 @@ export async function parsePdf(file: File): Promise<ParseResult> {
       segments.push({ id: pageId(i), text });
       pageTexts.push(text);
     }
+  }
+  // PDF 정보 dictionary(Author/Title/Subject/Keywords)도 마스킹 대상.
+  // 본문(page text)을 가렸어도 메타데이터에 PII가 남으면 PDF reader가 "Properties" 탭에 노출.
+  try {
+    const meta = await doc.getMetadata();
+    const info = meta?.info as Record<string, unknown> | undefined;
+    if (info) {
+      for (const key of PDF_META_KEYS) {
+        const val = info[key];
+        if (typeof val === 'string' && val.length > 0) {
+          segments.push({ id: `pdfmeta::${key}`, text: val.normalize('NFC') });
+        }
+      }
+    }
+  } catch {
+    /* PDF에 metadata 없으면 무시 */
   }
   return { segments, combinedText: pageTexts.join('\n\n') };
 }
@@ -55,6 +75,23 @@ export async function exportPdf(originalFile: File, masked: ExportInput): Promis
       lineHeight: 12,
     });
   }
+  // PDF 정보 dictionary 마스킹 적용 — parsePdf와 대칭. parsePdf가 등록하지 않은 키는
+  // mask-segments도 통과시키지 않으므로 새 doc에 추가 안 됨 (안전 기본값).
+  const title = masked.get('pdfmeta::Title');
+  if (title !== undefined) newDoc.setTitle(title);
+  const author = masked.get('pdfmeta::Author');
+  if (author !== undefined) newDoc.setAuthor(author);
+  const subject = masked.get('pdfmeta::Subject');
+  if (subject !== undefined) newDoc.setSubject(subject);
+  const keywords = masked.get('pdfmeta::Keywords');
+  if (keywords !== undefined) {
+    // PDF Keywords는 string array — 공백/쉼표로 분리.
+    newDoc.setKeywords(keywords.split(/[,\s]+/).filter((k) => k.length > 0));
+  }
+  const creator = masked.get('pdfmeta::Creator');
+  if (creator !== undefined) newDoc.setCreator(creator);
+  const producer = masked.get('pdfmeta::Producer');
+  if (producer !== undefined) newDoc.setProducer(producer);
   const bytes = await newDoc.save();
   return new Blob([bytes as BlobPart], { type: 'application/pdf' });
 }
