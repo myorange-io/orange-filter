@@ -33,8 +33,8 @@ declare -a ALLOW=(
   '국민 100200-30-040506' '우리 100-200304-05-060'
   '하나 333-333333-33333'
   # Test fixture accounts
-  '농협 100-12-345678'  # regression fixture
-  '하나 296-18-09507'   # detector pattern docstring example
+  '농협 100-12-345678'    # regression fixture
+  '하나 100-20-30405'     # detector docstring 3-2-5-1 example
 )
 
 found=0
