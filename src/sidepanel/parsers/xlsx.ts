@@ -6,9 +6,126 @@ function cellId(sheet: string, address: string): string {
   return `${sheet}!${address}`;
 }
 
+// SheetJS workbook props가 노출하는 텍스트 키 (Date 객체·boolean·number 제외).
+// 모든 string 값을 segment로 노출해 detect가 PII 여부 판단. PII 아니면 원본 그대로.
+const PROPS_TEXT_KEYS = [
+  'Title', 'Subject', 'Author', 'Manager', 'Company', 'Category',
+  'Keywords', 'Comments', 'LastAuthor', 'Application', 'DocSecurity',
+] as const;
+
+function propsSegments(wb: XLSX.WorkBook): Segment[] {
+  const out: Segment[] = [];
+  if (wb.Props) {
+    for (const key of PROPS_TEXT_KEYS) {
+      const val = (wb.Props as Record<string, unknown>)[key];
+      if (typeof val === 'string' && val.length > 0) {
+        out.push({ id: `xlsxprops::${key}`, text: val.normalize('NFC') });
+      }
+    }
+  }
+  if (wb.Custprops && typeof wb.Custprops === 'object') {
+    for (const [key, val] of Object.entries(wb.Custprops)) {
+      if (typeof val === 'string' && val.length > 0) {
+        out.push({ id: `xlsxcustprops::${key}`, text: val.normalize('NFC') });
+      }
+    }
+  }
+  return out;
+}
+
+interface CellComment {
+  a?: string;
+  t?: string;
+}
+
+function commentSegments(wb: XLSX.WorkBook): Segment[] {
+  const out: Segment[] = [];
+  for (const name of wb.SheetNames) {
+    const sheet = wb.Sheets[name];
+    if (!sheet) continue;
+    const range = sheet['!ref'] ? XLSX.utils.decode_range(sheet['!ref']) : null;
+    if (!range) continue;
+    for (let R = range.s.r; R <= range.e.r; R++) {
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = sheet[addr] as { c?: CellComment[] } | undefined;
+        if (!cell?.c || !Array.isArray(cell.c)) continue;
+        cell.c.forEach((comment, idx) => {
+          if (typeof comment.t === 'string' && comment.t.length > 0) {
+            out.push({
+              id: `xlsxcomment::${name}!${addr}#${idx}::t`,
+              text: comment.t.normalize('NFC'),
+            });
+          }
+          if (typeof comment.a === 'string' && comment.a.length > 0) {
+            out.push({
+              id: `xlsxcomment::${name}!${addr}#${idx}::a`,
+              text: comment.a.normalize('NFC'),
+            });
+          }
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function applyPropsMask(wb: XLSX.WorkBook, masked: ExportInput): void {
+  if (wb.Props) {
+    for (const key of PROPS_TEXT_KEYS) {
+      const id = `xlsxprops::${key}`;
+      const replacement = masked.get(id);
+      if (replacement !== undefined) {
+        (wb.Props as Record<string, unknown>)[key] = replacement;
+      }
+    }
+  }
+  if (wb.Custprops && typeof wb.Custprops === 'object') {
+    const custom = wb.Custprops as Record<string, unknown>;
+    for (const key of Object.keys(custom)) {
+      const id = `xlsxcustprops::${key}`;
+      const replacement = masked.get(id);
+      if (replacement !== undefined) {
+        custom[key] = replacement;
+      }
+    }
+  }
+}
+
+function applyCommentsMask(wb: XLSX.WorkBook, masked: ExportInput): void {
+  for (const name of wb.SheetNames) {
+    const sheet = wb.Sheets[name];
+    if (!sheet) continue;
+    const range = sheet['!ref'] ? XLSX.utils.decode_range(sheet['!ref']) : null;
+    if (!range) continue;
+    for (let R = range.s.r; R <= range.e.r; R++) {
+      for (let C = range.s.c; C <= range.e.c; C++) {
+        const addr = XLSX.utils.encode_cell({ r: R, c: C });
+        const cell = sheet[addr] as { c?: CellComment[] } | undefined;
+        if (!cell?.c || !Array.isArray(cell.c)) continue;
+        cell.c.forEach((comment, idx) => {
+          const tId = `xlsxcomment::${name}!${addr}#${idx}::t`;
+          const aId = `xlsxcomment::${name}!${addr}#${idx}::a`;
+          const tRepl = masked.get(tId);
+          const aRepl = masked.get(aId);
+          if (tRepl !== undefined) comment.t = tRepl;
+          if (aRepl !== undefined) comment.a = aRepl;
+        });
+      }
+    }
+  }
+}
+
 export async function parseXlsx(file: File): Promise<ParseResult> {
   const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array' });
+  // bookProps + cellStyles + cellNF: docProps 메타데이터 + cell comments + 서식 보존.
+  const wb = XLSX.read(buf, {
+    type: 'array',
+    cellStyles: true,
+    cellNF: true,
+    bookFiles: true,
+    bookVBA: true,
+  });
   const segments: Segment[] = [];
   const lines: string[] = [];
   for (const name of wb.SheetNames) {
@@ -74,6 +191,9 @@ export async function parseXlsx(file: File): Promise<ParseResult> {
       lines.push(rowCells.join(' | '));
     }
   }
+  // 워크북 메타데이터 + 셀 코멘트도 마스킹 대상에 포함 — 작성자·제목·키워드·코멘트 누출 차단.
+  segments.push(...propsSegments(wb));
+  segments.push(...commentSegments(wb));
   return { segments, combinedText: lines.join('\n') };
 }
 
@@ -124,6 +244,9 @@ export async function exportXlsx(originalFile: File, masked: ExportInput): Promi
       }
     }
   }
+  // 워크북 메타데이터 + 셀 코멘트 마스킹 적용 (parseXlsx와 대칭).
+  applyPropsMask(wb, masked);
+  applyCommentsMask(wb, masked);
   // 원본 확장자를 그대로 유지 — .xls 입력은 .xls(BIFF8) 출력.
   const bookType = bookTypeForName(originalFile.name);
   const out = XLSX.write(wb, { type: 'array', bookType, cellStyles: true });

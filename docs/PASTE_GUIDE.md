@@ -1,11 +1,11 @@
 # Paste 동작 가이드 — 어떤 입력을 어떻게 처리하나요
 
 **버전**: 0.0.1
-**대상**: 오렌지 필터 사용자, NPO 직원, 개발자
+**대상**: Orange Filter 사용자, NPO 직원, 개발자
 **관련**: [개인정보 처리방침](./PRIVACY_POLICY.md), [위협 모델](./THREAT_MODEL.md)
 
 이 문서는 LLM 사이트(ChatGPT, Claude, Gemini, Perplexity, Orange-Impact)에 paste할 때
-**오렌지 필터가 어떤 입력을 가로채고 어떤 입력은 그대로 통과시키는지**를 명세합니다.
+**Orange Filter가 어떤 입력을 가로채고 어떤 입력은 그대로 통과시키는지**를 명세합니다.
 
 > 핵심 원칙: 우리는 **텍스트 paste만 가로챕니다**. 그 외(파일 첨부, 이미지, ZIP)는
 > 사이드 패널 파일 업로드 영역에서만 PII 처리합니다. paste 가로채기는 사용자의
