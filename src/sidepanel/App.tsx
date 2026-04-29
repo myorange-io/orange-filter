@@ -1,7 +1,7 @@
 // 사이드 패널 메인 — 타이틀 → 파일 업로드/큐 → 필터·설정 탭 순서.
 
 import { useEffect, useState } from 'react';
-import { Shield, Trash2 } from 'lucide-react';
+import { Lightbulb, Shield, Trash2 } from 'lucide-react';
 import { Badge } from '@/shared/ui/badge';
 import { Button } from '@/shared/ui/button';
 import { CategoryToggleList } from '@/shared/ui/CategoryToggleList';
@@ -22,6 +22,7 @@ import {
 import type { MaskMode, PIICategory } from '@/shared/types';
 import { FileDropZone } from './FileDropZone';
 import { FileQueueList } from './FileQueueList';
+import { GateScreen, useModelCached } from './GateScreen';
 import { ModelManager } from './ModelManager';
 import { useFileQueue } from './use-file-queue';
 
@@ -31,6 +32,9 @@ export function App() {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [newDomain, setNewDomain] = useState('');
   const [activeTab, setActiveTab] = useState<'filter' | 'settings'>('filter');
+  // 모델 cached 여부 — 미설치면 GateScreen만 표시 (사용자 정의: 모델 설치 후에만 사용 가능).
+  const modelStatus = useModelCached();
+  const [gatePassed, setGatePassed] = useState(false);
 
   useEffect(() => {
     void loadSettings().then(setSettings);
@@ -83,6 +87,16 @@ export function App() {
   const enabledCount = CATEGORY_ORDER.filter(
     (c) => settings.enabledByCategory[c] ?? false,
   ).length;
+
+  // 게이트 통과 전엔 본문 입력 UI를 렌더링하지 않는다 — 사용자 정의(A 모드).
+  if (modelStatus.checked && !modelStatus.cached && !gatePassed) {
+    return (
+      <TooltipProvider>
+        <GateScreen onReady={() => setGatePassed(true)} />
+        <Toaster />
+      </TooltipProvider>
+    );
+  }
 
   return (
     <TooltipProvider>
@@ -139,6 +153,27 @@ export function App() {
             }}
           />
           <FileQueueList items={queue.items} onRemove={queue.remove} />
+          {queue.items.length === 0 && (
+            <div className="flex items-start gap-2.5 rounded-xl border border-primary/15 bg-accent/40 p-3">
+              <Lightbulb className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" aria-hidden />
+              <div className="flex-1">
+                <div className="text-[12.5px] font-semibold">처음이라면</div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    toast({
+                      title: '예시 데이터 — 준비 중',
+                      description:
+                        '다음 버전에서 합성 결산공시 샘플로 안전하게 시험해볼 수 있어요.',
+                    })
+                  }
+                  className="text-[12.5px] text-accent-foreground underline underline-offset-2 hover:no-underline"
+                >
+                  예시 파일로 한 번 시험해보기 →
+                </button>
+              </div>
+            </div>
+          )}
           {queue.items.length > 0 && (
             <button
               type="button"
@@ -257,6 +292,13 @@ export function App() {
         </Tabs>
 
         <footer className="mt-6 space-y-1 text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5">
+            <span
+              className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600"
+              aria-hidden
+            />
+            <span>AI 보호 켜짐</span>
+          </div>
           <p>모든 처리는 이 PC 안에서 이뤄집니다.</p>
           <p>
             <a

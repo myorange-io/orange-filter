@@ -450,3 +450,44 @@ describe.skipIf(externalHwpxFiles.length === 0)(
     }
   },
 );
+
+// ---------------------------------------------------------------------------
+// v1.3 회귀 — sample/1.hwpx 명시 검증
+//   1) Preview/PrvText.txt가 segment에 포함되어야 한다 (미리보기 누출 차단).
+//   2) 사용자 정의상 PII가 아닌 단어(공공기관명·일반어)가 정규식 detect에서 안 잡혀야 한다.
+// ---------------------------------------------------------------------------
+
+const sample1Path = sampleDir ? join(sampleDir, '1.hwpx') : null;
+
+describe.skipIf(!sample1Path || !existsSync(sample1Path))(
+  'HWPX v1.3 회귀 — sample/1.hwpx',
+  () => {
+    test('Preview/PrvText.txt가 segment에 포함된다 (미리보기 누출 방지)', async () => {
+      const buf = readFileSync(sample1Path!);
+      const file = new File([buf], '1.hwpx');
+      const parsed = await parseHwpx(file);
+      const prvSeg = parsed.segments.find((s) => s.id.startsWith('Preview/PrvText.txt'));
+      expect(prvSeg, '미리보기 텍스트 segment가 등록되지 않음').toBeDefined();
+      expect(prvSeg!.text.length).toBeGreaterThan(0);
+    });
+
+    test('일반 본문에서 조직명·일반어가 정규식 detect로 잡히지 않는다', async () => {
+      const buf = readFileSync(sample1Path!);
+      const file = new File([buf], '1.hwpx');
+      const parsed = await parseHwpx(file);
+      const matched = new Set<string>();
+      for (const seg of parsed.segments) {
+        for (const span of detectKoreanPII(seg.text)) matched.add(span.text);
+      }
+      // 사용자 정의: 조직명·공공기관명·일반어는 모두 PII 아님 → 매치되면 안 됨.
+      const nonPii = [
+        '한국사회적기업진흥원', '조달청', '협동조합',
+        '한국공공기관연구원', '공공조달역량개발원', '성장지원센터',
+        '선착순', '노트북', '하반기', '서울역',
+      ];
+      for (const term of nonPii) {
+        expect(matched.has(term), `"${term}"는 PII가 아닌데 정규식이 매치함`).toBe(false);
+      }
+    });
+  },
+);

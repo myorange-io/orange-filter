@@ -1,0 +1,650 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NER 다운로드 게이트 — UX 시안 v1</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<link
+  rel="stylesheet"
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
+/>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Pretendard Variable', 'Pretendard', 'system-ui', 'sans-serif'],
+        },
+        colors: {
+          bg: '#FFFFFF',
+          fg: '#171717',
+          muted: '#F0F0F0',
+          mutedfg: '#737373',
+          border: '#E5E5E5',
+          primary: '#FF6F1F',
+          accent: '#FFF2E7',
+          accentfg: '#C44312',
+          info: '#0075FF',
+          infosoft: '#EAF3FF',
+          danger: '#DC2626',
+          dangersoft: '#FEF2F2',
+          successsoft: '#F0FDF4',
+          successfg: '#15803D',
+        },
+        borderRadius: { xl: '12px', '2xl': '16px' },
+        boxShadow: {
+          panel: '0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.06)',
+        },
+      },
+    },
+  };
+</script>
+<style>
+  body {
+    font-family: 'Pretendard Variable', 'Pretendard', system-ui, sans-serif;
+    background: #FAFAFA;
+    color: #171717;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* 사이드패널 시뮬 — Chrome 사이드패널 기본 폭 360px, 높이 720px */
+  .panel {
+    width: 360px;
+    height: 720px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 16px 40px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 0 0 auto;
+  }
+  .panel-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: #737373;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    padding-left: 4px;
+  }
+  .panel-note {
+    font-size: 12px;
+    color: #737373;
+    margin-top: 10px;
+    padding: 0 4px;
+    line-height: 1.5;
+    max-width: 360px;
+  }
+  /* 부드러운 진행 바 애니메이션 */
+  @keyframes progress-fill {
+    0% { width: 8%; }
+    50% { width: 54%; }
+    100% { width: 54%; }
+  }
+  .progress-bar { animation: progress-fill 1.6s ease-out forwards; }
+  /* 펄스 도트 */
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.85); }
+  }
+  .pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+  /* 미세한 흔들림 (에러 아이콘) */
+  .icon-circle { transition: all 0.2s ease; }
+  /* 버튼 */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 600;
+    border-radius: 10px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+    border: 1px solid transparent;
+  }
+  .btn-primary {
+    background: #FF6F1F;
+    color: white;
+    height: 48px;
+    padding: 0 18px;
+    font-size: 15px;
+  }
+  .btn-primary:hover { background: #E85F0F; }
+  .btn-ghost {
+    background: transparent;
+    color: #171717;
+    height: 40px;
+    padding: 0 14px;
+    font-size: 14px;
+    border-color: #E5E5E5;
+  }
+  .btn-ghost:hover { background: #FAFAFA; }
+  .btn-link {
+    background: transparent;
+    color: #737373;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    font-size: 13px;
+    padding: 4px;
+  }
+  .btn-link:hover { color: #171717; }
+  /* 카드 액션 */
+  .action-card {
+    border: 1px solid #E5E5E5;
+    border-radius: 12px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .action-card:hover { border-color: #FF6F1F; background: #FFF2E7; }
+  /* 사이드패널 헤더 (확장 식별) */
+  .panel-header {
+    height: 44px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #F0F0F0;
+    flex-shrink: 0;
+  }
+  .panel-footer {
+    height: 36px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-top: 1px solid #F0F0F0;
+    font-size: 11px;
+    color: #737373;
+    flex-shrink: 0;
+  }
+  .panel-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 20px;
+  }
+  /* 인터랙션 그룹 (시안의 컨텍스트 캡션) */
+  .scenario-block {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+</style>
+</head>
+<body class="font-sans">
+
+<header class="px-8 py-6 border-b border-border bg-white">
+  <div class="max-w-[1800px] mx-auto">
+    <div class="flex items-baseline gap-3 mb-1">
+      <h1 class="text-xl font-bold tracking-tight">NER 다운로드 게이트</h1>
+      <span class="text-xs font-mono text-mutedfg">UX 시안 v1 · 사이드패널 360×720</span>
+    </div>
+    <p class="text-sm text-mutedfg leading-relaxed max-w-3xl">
+      AI 모델(50MB)을 설치하지 않은 사용자는 마스킹 기능을 시작할 수 없다.
+      가치 제시 → 설치 → 즉시 첫 사용으로 이어지는 다섯 화면.
+      Pretendard / OI Design System / shadcn 토큰 기준.
+    </p>
+  </div>
+</header>
+
+<main class="max-w-[1800px] mx-auto px-8 py-12">
+  <div class="flex gap-12 overflow-x-auto pb-12">
+
+    <!-- ============================================ -->
+    <!-- 1. GATE — 첫 진입 -->
+    <!-- ============================================ -->
+    <div class="scenario-block">
+      <div class="panel-label">화면 1 · 게이트</div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF6F1F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+          </div>
+          <div class="font-semibold text-sm">Orange Filter</div>
+        </div>
+
+        <div class="panel-body">
+          <!-- 큰 아이콘 -->
+          <div class="flex justify-center mb-6">
+            <div class="w-20 h-20 rounded-full bg-accent flex items-center justify-center">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#FF6F1F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/>
+                <path d="m9 12 2 2 4-4"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- 헤드라인 + 설명 -->
+          <h2 class="text-[20px] font-bold leading-snug text-center mb-2">
+            한 번만 설치하면 됩니다
+          </h2>
+          <p class="text-[13.5px] text-mutedfg text-center leading-relaxed mb-7 px-1">
+            개인정보를 AI가 정확하게 찾아내 가립니다
+          </p>
+
+          <!-- 가치 체크박스 3개 -->
+          <ul class="space-y-3 mb-8">
+            <li class="flex items-start gap-3">
+              <div class="w-5 h-5 rounded-full bg-successsoft flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <span class="text-[13.5px] leading-snug"><b class="font-semibold">처음 한 번만</b> 설치하면 됩니다</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <div class="w-5 h-5 rounded-full bg-successsoft flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <span class="text-[13.5px] leading-snug">설치한 뒤엔 <b class="font-semibold">인터넷 없이도</b> 동작합니다</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <div class="w-5 h-5 rounded-full bg-successsoft flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <span class="text-[13.5px] leading-snug">파일이 <b class="font-semibold">외부 서버로 전송되지 않습니다</b></span>
+            </li>
+          </ul>
+
+          <!-- 메인 CTA -->
+          <button class="btn btn-primary w-full mb-3">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            AI 모델 설치하기 (약 50 MB)
+          </button>
+
+          <div class="text-center">
+            <button class="btn-link">어떻게 동작하나요?</button>
+          </div>
+        </div>
+
+        <div class="panel-footer">
+          <span>AI 모델: YATAV-ENT/aegis-pii</span>
+          <span>v1.2.0</span>
+        </div>
+      </div>
+      <div class="panel-note">
+        <b>설계 의도</b> — Block 통과는 첫 1초의 큰 아이콘 + 헤드라인.
+        Interpret는 헤드라인 단 한 줄("한 번만 설치하면 평생 안전").
+        체크 3개는 50MB 부담을 압도하는 가치 신호 (오프라인·외부 미전송·일회성).
+        '건너뛰기' 버튼 없음 — 강제임을 숨기지 않는다.
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 2. DOWNLOADING — 진행 중 -->
+    <!-- ============================================ -->
+    <div class="scenario-block">
+      <div class="panel-label">화면 2 · 설치 진행</div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF6F1F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+          </div>
+          <div class="font-semibold text-sm">Orange Filter</div>
+        </div>
+
+        <div class="panel-body flex flex-col">
+          <!-- 진행 아이콘 -->
+          <div class="flex justify-center mt-4 mb-6">
+            <div class="w-16 h-16 rounded-full bg-accent flex items-center justify-center relative">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#FF6F1F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              <div class="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-primary pulse-dot"></div>
+            </div>
+          </div>
+
+          <h2 class="text-[18px] font-bold text-center mb-1">AI 모델 설치하는 중</h2>
+          <p class="text-[12.5px] text-mutedfg text-center mb-6">잠시만 기다려 주세요</p>
+
+          <!-- 진행률 -->
+          <div class="mb-2">
+            <div class="flex items-baseline justify-between mb-2">
+              <span class="text-[13px] font-medium">54%</span>
+              <span class="text-[12px] text-mutedfg font-mono">27 / 50 MB</span>
+            </div>
+            <div class="w-full h-2 bg-muted rounded-full overflow-hidden">
+              <div class="h-full bg-primary rounded-full progress-bar" style="width:54%"></div>
+            </div>
+            <div class="text-[12px] text-mutedfg mt-2 text-center">남은 시간 약 25초</div>
+          </div>
+
+          <div class="flex-1"></div>
+
+          <!-- 안심 메시지 -->
+          <div class="bg-infosoft border border-info/20 rounded-xl p-3.5 mb-5">
+            <div class="flex gap-2.5">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0075FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 mt-0.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <div class="text-[12.5px] leading-relaxed text-fg">
+                네트워크가 끊겨도 여기까지 진행한 만큼은 저장돼서<br/>
+                <b class="font-semibold">다음에 이어서 설치할 수 있어요.</b>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn btn-ghost w-full">취소</button>
+        </div>
+
+        <div class="panel-footer">
+          <span class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-primary pulse-dot"></span>
+            설치 중
+          </span>
+          <span>v1.2.0</span>
+        </div>
+      </div>
+      <div class="panel-note">
+        <b>설계 의도</b> — 50MB는 빠른 망에서 5초·느린 망에서 1분.
+        진행률 바보다 결정적인 건 "끊겨도 괜찮다"는 안심 박스.
+        이미 IndexedDB 이어설치하기는 구현되어 있는데(model-runtime.ts:159)
+        UI에 노출되지 않았던 것을 가시화한다.
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 3. READY — 완료 + 첫 사용 -->
+    <!-- ============================================ -->
+    <div class="scenario-block">
+      <div class="panel-label">화면 3 · 준비 완료 (Peak-End)</div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF6F1F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+          </div>
+          <div class="font-semibold text-sm">Orange Filter</div>
+        </div>
+
+        <div class="panel-body">
+          <!-- 성공 아이콘 -->
+          <div class="flex justify-center mt-2 mb-6">
+            <div class="w-20 h-20 rounded-full bg-successsoft flex items-center justify-center">
+              <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                <polyline points="22 4 12 14.01 9 11.01"/>
+              </svg>
+            </div>
+          </div>
+
+          <h2 class="text-[20px] font-bold text-center mb-2">준비됐어요</h2>
+          <p class="text-[13.5px] text-mutedfg text-center leading-relaxed mb-7">
+            이제 개인정보가 포함된 파일을 가려보세요
+          </p>
+
+          <!-- 액션 카드 (파일 선택만) -->
+          <div class="action-card mb-3">
+            <div class="flex items-start gap-3">
+              <div class="w-9 h-9 rounded-lg bg-accent flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF6F1F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <div class="flex-1">
+                <div class="font-semibold text-[14px] mb-0.5">파일 선택</div>
+                <div class="text-[12px] text-mutedfg">HWP, HWPX, PDF, DOCX, XLSX, PPTX 등</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 자동 보호 안내 배너 (정보형, 액션 아님) -->
+          <div class="flex items-center gap-2.5 bg-successsoft/60 border border-successfg/15 rounded-lg px-3 py-2.5 mb-6">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0">
+              <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+            <div class="text-[12.5px] leading-snug flex-1">
+              <div class="font-semibold">ChatGPT 등에서 자동으로 가리는 중</div>
+              <div class="text-mutedfg text-[11.5px] mt-0.5">붙여넣기만 해도 개인정보가 가려져요</div>
+            </div>
+          </div>
+
+          <!-- 첫 사용자 가이드 -->
+          <div class="bg-accent/60 border border-primary/15 rounded-xl p-3.5">
+            <div class="flex items-start gap-2.5">
+              <span class="text-base leading-none mt-0.5">💡</span>
+              <div class="flex-1">
+                <div class="text-[12.5px] font-semibold mb-1">처음이라면</div>
+                <button class="text-[12.5px] text-accentfg underline underline-offset-2 hover:no-underline">
+                  예시 파일로 한 번 시험해보기 →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel-footer">
+          <span class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-successfg"></span>
+            AI 보호 켜짐
+          </span>
+          <span>v1.2.0</span>
+        </div>
+      </div>
+      <div class="panel-note">
+        <b>설계 의도</b> — Peak-End의 End. 50MB 받은 직후가 도구 평가의 결정적 순간.
+        "완료" 메시지로 끝내지 않고 즉시 첫 사용 카드 + 안전한 데모 옵션.
+        sample/1.hwpx를 1-click 데모로 연결해 "내 진짜 파일 무서움"을 우회한다.
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 4. ERROR — 다운로드 실패 -->
+    <!-- ============================================ -->
+    <div class="scenario-block">
+      <div class="panel-label">화면 4 · 에러 회복</div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF6F1F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+          </div>
+          <div class="font-semibold text-sm">Orange Filter</div>
+        </div>
+
+        <div class="panel-body">
+          <!-- 경고 아이콘 -->
+          <div class="flex justify-center mt-2 mb-6">
+            <div class="w-20 h-20 rounded-full bg-dangersoft flex items-center justify-center icon-circle">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                <line x1="12" y1="9" x2="12" y2="13"/>
+                <line x1="12" y1="17" x2="12.01" y2="17"/>
+              </svg>
+            </div>
+          </div>
+
+          <h2 class="text-[19px] font-bold text-center mb-2">설치에 실패했어요</h2>
+          <p class="text-[13.5px] text-mutedfg text-center leading-relaxed mb-6 px-2">
+            네트워크가 잠시 끊겼거나<br/>
+            디스크 공간이 부족할 수 있어요
+          </p>
+
+          <!-- 진행 상태 (이어설치하기 가능 안내) -->
+          <div class="bg-infosoft border border-info/20 rounded-xl p-3.5 mb-5">
+            <div class="flex items-start gap-2.5">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0075FF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="flex-shrink-0 mt-0.5"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
+              <div class="text-[12.5px] leading-relaxed">
+                여기까지 진행한 <b class="font-semibold">27 MB는 저장돼 있어요.</b><br/>
+                이어서 설치하면 됩니다.
+              </div>
+            </div>
+          </div>
+
+          <!-- 액션 -->
+          <button class="btn btn-primary w-full mb-2.5">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            이어서 설치하기
+          </button>
+          <button class="btn btn-ghost w-full mb-4">처음부터 다시 설치하기</button>
+
+          <!-- 우회로 -->
+          <details class="text-center">
+            <summary class="btn-link cursor-pointer list-none">계속 실패하나요? &nbsp;<span class="text-mutedfg">▾</span></summary>
+            <div class="mt-3 text-left bg-muted rounded-xl p-3.5 text-[12px] leading-relaxed text-mutedfg">
+              <div class="font-semibold text-fg mb-1">회사 방화벽이 차단할 수 있어요</div>
+              huggingface.co 도메인을 IT 관리자에게 허용 요청하거나,
+              <a class="text-info underline" href="#">모델 파일을 직접 가져와서 설치하기</a>로 우회할 수 있어요.
+            </div>
+          </details>
+        </div>
+
+        <div class="panel-footer">
+          <span class="flex items-center gap-1.5">
+            <span class="w-1.5 h-1.5 rounded-full bg-danger"></span>
+            설치 중단됨
+          </span>
+          <span>v1.2.0</span>
+        </div>
+      </div>
+      <div class="panel-note">
+        <b>설계 의도</b> — 막다른 길을 만들지 않는다. 1차 액션은 이어설치하기(가장 빠른 회복).
+        2차는 처음부터. "계속 실패하나요?"는 접혀 있어 보통 사용자에겐 인지 부담을 안 주고,
+        진짜 막힌 사용자(방화벽·기업망)에겐 우회로를 명시한다.
+      </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- 5. STEADY — 평상시 (게이트 통과 후) -->
+    <!-- ============================================ -->
+    <div class="scenario-block">
+      <div class="panel-label">화면 5 · 평상시</div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="w-6 h-6 rounded-md bg-primary/10 flex items-center justify-center">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#FF6F1F" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.5 3.8 17 5 19 5a1 1 0 0 1 1 1z"/></svg>
+          </div>
+          <div class="font-semibold text-sm flex-1">Orange Filter</div>
+          <button class="text-mutedfg hover:text-fg">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+
+        <div class="panel-body">
+          <!-- 드롭존 -->
+          <div class="border-2 border-dashed border-border rounded-xl p-6 text-center mb-4">
+            <div class="w-10 h-10 rounded-lg bg-accent flex items-center justify-center mx-auto mb-3">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6F1F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </div>
+            <div class="text-[14px] font-semibold mb-1">파일을 끌어다 놓기</div>
+            <div class="text-[12px] text-mutedfg">또는 클릭해서 선택</div>
+          </div>
+
+          <!-- 처리 큐 -->
+          <div class="text-[11px] font-semibold text-mutedfg uppercase tracking-wider mb-2 px-1">최근 처리</div>
+
+          <div class="space-y-2">
+            <div class="border border-border rounded-xl p-3 flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-successsoft flex items-center justify-center flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-[13px] font-medium truncate">2024년 결산공시.hwpx</div>
+                <div class="text-[11.5px] text-mutedfg">14개 항목 가림 · 방금 전</div>
+              </div>
+              <button class="text-mutedfg hover:text-fg">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+            </div>
+            <div class="border border-border rounded-xl p-3 flex items-center gap-3">
+              <div class="w-8 h-8 rounded-lg bg-successsoft flex items-center justify-center flex-shrink-0">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#15803D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="text-[13px] font-medium truncate">기부금 명세서_4월.xls</div>
+                <div class="text-[11.5px] text-mutedfg">38개 항목 가림 · 12분 전</div>
+              </div>
+              <button class="text-mutedfg hover:text-fg">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 푸터: 모델 상태 점 하나만 -->
+        <div class="panel-footer">
+          <button class="flex items-center gap-1.5 hover:text-fg transition-colors">
+            <span class="w-1.5 h-1.5 rounded-full bg-successfg"></span>
+            AI 보호 켜짐
+          </button>
+          <span>v1.2.0</span>
+        </div>
+      </div>
+      <div class="panel-note">
+        <b>설계 의도</b> — 게이트 통과 후 다시는 마주치지 않는다.
+        모델 상태는 푸터의 작은 점 하나로 minimization. 클릭하면 모델 정보·재다운로드·삭제 옵션 팝오버.
+        평소엔 인지 부하를 주지 않는 조용한 안심 신호.
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 부록 -->
+  <section class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div class="bg-white border border-border rounded-2xl p-6">
+      <h3 class="text-base font-bold mb-3">안티-다크패턴 체크리스트</h3>
+      <ul class="space-y-2 text-sm">
+        <li class="flex items-start gap-2"><span class="text-successfg font-bold">✓</span> 강제임을 숨기는 작은 회색 "건너뛰기" 버튼 — <b>없음</b></li>
+        <li class="flex items-start gap-2"><span class="text-successfg font-bold">✓</span> 사용자 동의 없는 자동 다운로드 — <b>없음</b> (명시 클릭 후 시작)</li>
+        <li class="flex items-start gap-2"><span class="text-successfg font-bold">✓</span> "지금 안 설치하면 위험합니다" 압박 — <b>없음</b> (가치 제시만)</li>
+        <li class="flex items-start gap-2"><span class="text-successfg font-bold">✓</span> 진행률만 빙빙 도는 화면 — <b>없음</b> (이어설치하기 안심 메시지 동반)</li>
+        <li class="flex items-start gap-2"><span class="text-successfg font-bold">✓</span> 완료 후 빈 화면 — <b>없음</b> (즉시 첫 사용 + 안전 데모)</li>
+        <li class="flex items-start gap-2"><span class="text-successfg font-bold">✓</span> 매 진입마다 "AI 활성" 배너 — <b>없음</b> (푸터 점 하나로)</li>
+      </ul>
+    </div>
+
+    <div class="bg-white border border-border rounded-2xl p-6">
+      <h3 class="text-base font-bold mb-3">화면 전이 흐름</h3>
+      <ol class="space-y-3 text-sm">
+        <li>
+          <b>설치 직후 → 화면 1 (게이트)</b>
+          <div class="text-mutedfg text-[13px] mt-0.5">사이드패널 첫 진입 시 모델 미설치 → 입력 UI 전부 disable, 게이트만 표시.</div>
+        </li>
+        <li>
+          <b>"AI 모델 설치하기" 클릭 → 화면 2 (진행)</b>
+          <div class="text-mutedfg text-[13px] mt-0.5">진행 중 사이드패널 닫아도 설치는 background에서 계속.</div>
+        </li>
+        <li>
+          <b>다운로드 완료 → 화면 3 (준비 완료)</b>
+          <div class="text-mutedfg text-[13px] mt-0.5">3초 후 자동 dismiss하고 화면 5로 슬라이드 — 또는 사용자가 액션 카드 클릭.</div>
+        </li>
+        <li>
+          <b>실패/네트워크 오류 → 화면 4</b>
+          <div class="text-mutedfg text-[13px] mt-0.5">이어설치하기 가능. 푸터 상태가 빨간 점.</div>
+        </li>
+        <li>
+          <b>이후 평상시 → 화면 5</b>
+          <div class="text-mutedfg text-[13px] mt-0.5">게이트는 다시 마주치지 않음. 모델 업그레이드 시에도 백그라운드 처리.</div>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="mt-6 bg-accent/40 border border-primary/15 rounded-2xl p-6">
+    <h3 class="text-base font-bold mb-2">카피 톤 가이드</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+      <div>
+        <div class="text-mutedfg text-[12px] uppercase tracking-wider font-semibold mb-1">권장</div>
+        <ul class="space-y-1">
+          <li>"한 번만 설치하면 됩니다"</li>
+          <li>"파일이 외부 서버로 전송되지 않습니다"</li>
+          <li>"여기까지 진행한 만큼은 저장돼서 이어서 설치할 수 있어요"</li>
+          <li>"예시 파일로 한 번 시험해보기"</li>
+        </ul>
+      </div>
+      <div>
+        <div class="text-mutedfg text-[12px] uppercase tracking-wider font-semibold mb-1">회피</div>
+        <ul class="space-y-1 text-mutedfg">
+          <li class="line-through">"AI 모델을 설치해야 합니다"</li>
+          <li class="line-through">"이 기능을 사용하려면 50MB가 필요합니다"</li>
+          <li class="line-through">"준비 중입니다…"</li>
+          <li class="line-through">"오류가 발생했습니다 (Code: NET-503)"</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="px-8 py-6 border-t border-border bg-white text-center">
+  <p class="text-xs text-mutedfg">시안 v1 · 카피·여백·인터랙션 조정 후 구현 진행</p>
+</footer>
+
+</body>
+</html>

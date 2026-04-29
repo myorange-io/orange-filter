@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  detectContextualName,
   detectKoreanPII,
   validateBusinessNumberChecksum,
   validateForeignerRegistrationChecksum,
@@ -280,21 +281,38 @@ describe('detectKoreanPII', () => {
     ).toBeUndefined();
   });
 
-  it('한국 인명 + 직책 → high confidence', () => {
-    const text = '김민수 팀장님께 보고드렸습니다.';
-    const spans = detectKoreanPII(text);
-    const name = spans.find(
+  it('v1.3: 일반 본문에서는 정규식이 사람 이름을 잡지 않는다 (NER이 책임)', () => {
+    // 사용자 정의: 일반 본문의 NAME 검출은 NER에 위임. 정규식 NAME은 hintOnly cell만.
+    expect(detectKoreanPII('김민수 팀장님께 보고드렸습니다.').filter((s) => s.category === 'person_name')).toEqual([]);
+    expect(detectKoreanPII('박지성').filter((s) => s.category === 'person_name')).toEqual([]);
+    // 양식 안내문의 일반어도 잡지 않는다 (선착순/노트북/하반기/조달청 등 FP 차단).
+    for (const text of ['선착순 모집', '노트북을 지참', '하반기에 진행', '조달청 공고']) {
+      expect(detectKoreanPII(text).filter((s) => s.category === 'person_name')).toEqual([]);
+    }
+  });
+
+  it('v1.3: 조직명도 일반 본문에서 잡지 않는다 (사용자 정의: 조직명은 PII 아님)', () => {
+    for (const text of [
+      '한국사회적기업진흥원 공고',
+      '서울대학교 총장',
+      '아름다운재단 후원',
+      'KAIST 교수',
+      '협동조합 연합회',
+    ]) {
+      expect(detectKoreanPII(text).filter((s) => s.category === 'organization')).toEqual([]);
+    }
+  });
+
+  it('detectContextualName: 직책 동반 이름은 hintOnly cell에서 잡힘 (high confidence)', () => {
+    const name = detectContextualName('김민수 팀장님께 보고드렸습니다.').find(
       (s) => s.category === 'person_name' && s.confidence >= 0.8,
     );
     expect(name?.text).toBe('김민수');
   });
 
-  it('한국 인명 (bare 3자) → 낮은 confidence (FP 위험 인지)', () => {
-    const text = '박지성';
-    const spans = detectKoreanPII(text);
-    const name = spans.find((s) => s.category === 'person_name');
-    expect(name).toBeDefined();
-    expect(name?.confidence).toBeLessThan(0.7);
+  it('detectContextualName: bare 3자 이름은 hintOnly cell에서 잡힘', () => {
+    const name = detectContextualName('박지성').find((s) => s.category === 'person_name');
+    expect(name?.text).toBe('박지성');
   });
 
   it('2자 surname-prefix 단어는 매칭 X (이사/주요/성명/도움)', () => {
@@ -319,15 +337,14 @@ describe('detectKoreanPII', () => {
     }
   });
 
-  it('실제 인명 3자는 여전히 매칭 (이의헌/김난일/김강석)', () => {
+  it('detectContextualName: 실제 인명 3자 매칭 (이의헌/김난일/김강석)', () => {
     for (const text of ['이의헌 외 6인', '김난일 비상임', '대표 김강석']) {
-      const spans = detectKoreanPII(text);
-      const names = spans.filter((s) => s.category === 'person_name');
+      const names = detectContextualName(text).filter((s) => s.category === 'person_name');
       expect(names.length).toBeGreaterThan(0);
     }
   });
 
-  it('Finding 1: 자연 문장 안 이름 + 한국어 조사 매칭 (조성도입니다 / 김민수씨 / 박지영님)', () => {
+  it('detectContextualName: 자연 문장 안 이름 + 한국어 조사 매칭 (Finding 1)', () => {
     // 자연 한국어 문장에서 이름 뒤에 조사·접미사가 붙어도 매치돼야 한다.
     const cases: Array<[string, string]> = [
       ['안녕하세요, 조성도입니다.', '조성도'],
@@ -339,8 +356,7 @@ describe('detectKoreanPII', () => {
       ['김상철도 같이 왔다', '김상철'],
     ];
     for (const [text, expected] of cases) {
-      const spans = detectKoreanPII(text);
-      const names = spans.filter((s) => s.category === 'person_name');
+      const names = detectContextualName(text).filter((s) => s.category === 'person_name');
       expect(names.map((n) => n.text), `case "${text}"`).toContain(expected);
     }
   });
@@ -399,35 +415,16 @@ describe('detectKoreanPII', () => {
   // P1-1 + P1-2 + P2-1 + P2-2 + P3 회귀
   // ===========================================================================
 
-  it('P1-1: surname "선" + 복성 (남궁/황보/제갈) 추가 매칭', () => {
-    expect(detectKoreanPII('선아무 박사').find((s) => s.category === 'person_name')).toBeDefined();
-    expect(detectKoreanPII('남궁아무 교수').find((s) => s.category === 'person_name')).toBeDefined();
-    expect(detectKoreanPII('황보아무 대표').find((s) => s.category === 'person_name')).toBeDefined();
+  it('detectContextualName: surname "선" + 복성 (남궁/황보/제갈) 추가 매칭 (P1-1)', () => {
+    expect(detectContextualName('선아무 박사').find((s) => s.category === 'person_name')).toBeDefined();
+    expect(detectContextualName('남궁아무 교수').find((s) => s.category === 'person_name')).toBeDefined();
+    expect(detectContextualName('황보아무 대표').find((s) => s.category === 'person_name')).toBeDefined();
   });
 
-  it('P1-2: 조직명 ○○대학교/법인/재단/연구소 매칭', () => {
-    expect(detectKoreanPII('서울대학교 총장').find((s) => s.category === 'organization')?.text)
-      .toBe('서울대학교');
-    expect(detectKoreanPII('한국공익법인협회').find((s) => s.category === 'organization')?.text)
-      .toBeDefined();
-    expect(detectKoreanPII('아름다운재단 후원').find((s) => s.category === 'organization')?.text)
-      .toBe('아름다운재단');
-  });
-
-  it('P1-2: 영문 약어 KAIST/POSTECH/UNIST 매칭', () => {
-    expect(detectKoreanPII('KAIST 교수님').find((s) => s.category === 'organization')?.text)
-      .toBe('KAIST');
-    expect(detectKoreanPII('POSTECH 연구원').find((s) => s.category === 'organization')?.text)
-      .toBe('POSTECH');
-  });
-
-  it('P1-2: 일반명사 (공익법인/비영리법인 단독) 차단', () => {
-    expect(
-      detectKoreanPII('공익법인 결산서류').find((s) => s.category === 'organization' && s.text === '공익법인'),
-    ).toBeUndefined();
-    expect(
-      detectKoreanPII('비영리법인은').find((s) => s.category === 'organization' && s.text === '비영리법인'),
-    ).toBeUndefined();
+  it('v1.3: 일반명사 (공익법인/비영리법인 단독) — organization 카테고리 자체가 잡히지 않음', () => {
+    // 사용자 정의: 조직명은 모두 PII 아님 → organization detector 제거. 부수 효과로 일반명사도 차단됨.
+    expect(detectKoreanPII('공익법인 결산서류').filter((s) => s.category === 'organization')).toEqual([]);
+    expect(detectKoreanPII('비영리법인은').filter((s) => s.category === 'organization')).toEqual([]);
   });
 
   it('P2-1: 은행 prefix + 자릿수 다양 형식 (정규식 화이트리스트 미포함)', () => {
@@ -437,25 +434,23 @@ describe('detectKoreanPII', () => {
     expect(detectKoreanPII('우리 100-200304-05-060').find((s) => s.category === 'account')).toBeDefined();
   });
 
-  it('P2-2: 로마자 한국 이름 (Lee/Kim + CamelCase, CamelCase + 성씨)', () => {
-    expect(detectKoreanPII('Contact: KimAB').find((s) => s.category === 'person_name')).toBeDefined();
-    expect(detectKoreanPII('CV_KimDoeFoo.pdf').find((s) => s.category === 'person_name')).toBeDefined();
-    expect(detectKoreanPII('CV_DoeFooKim.pdf').find((s) => s.category === 'person_name')).toBeDefined();
+  it('detectContextualName: 로마자 한국 이름 (P2-2)', () => {
+    expect(detectContextualName('Contact: KimAB').find((s) => s.category === 'person_name')).toBeDefined();
+    expect(detectContextualName('CV_KimDoeFoo.pdf').find((s) => s.category === 'person_name')).toBeDefined();
+    expect(detectContextualName('CV_DoeFooKim.pdf').find((s) => s.category === 'person_name')).toBeDefined();
   });
 
-  it('P3: 파일명 internal token (이름+이력서/사본/면허)', () => {
+  it('detectContextualName: 파일명 internal token (P3)', () => {
     // 이름 부분만 매치 (suffix는 lookahead).
-    const t1 = '14. 임꺽정이력서_202402.doc';
-    const span1 = detectKoreanPII(t1).find((s) => s.category === 'person_name');
+    const span1 = detectContextualName('14. 임꺽정이력서_202402.doc').find((s) => s.category === 'person_name');
     expect(span1?.text).toBe('임꺽정');
-    const t2 = '홍길동사본.pdf';
-    const span2 = detectKoreanPII(t2).find((s) => s.category === 'person_name');
+    const span2 = detectContextualName('홍길동사본.pdf').find((s) => s.category === 'person_name');
     expect(span2?.text).toBe('홍길동');
   });
 
-  it('동일 셀에 같은 이름 여러 번 등장 — 모두 매칭 (P1-3 회귀)', () => {
+  it('detectContextualName: 동일 셀에 같은 이름 여러 번 등장 — 모두 매칭 (P1-3 회귀)', () => {
     const text = '7.성춘향-주민등록증사본_성춘향.pdf';
-    const names = detectKoreanPII(text).filter((s) => s.category === 'person_name' && s.text === '성춘향');
+    const names = detectContextualName(text).filter((s) => s.category === 'person_name' && s.text === '성춘향');
     expect(names.length).toBeGreaterThanOrEqual(2);
   });
 });
@@ -463,9 +458,11 @@ describe('detectKoreanPII', () => {
 describe('detectContextualName (2자 이름 컨텍스트 매치)', () => {
   it('파일명 안 _박영. / _오성_ / _홍진. 매치', async () => {
     const { detectContextualName } = await import('./regex');
-    expect(detectContextualName('4.통장사본_박영.pdf').map((s) => s.text)).toEqual(['박영']);
-    expect(detectContextualName('12.오성_신분증_1.jpg').map((s) => s.text)).toEqual(['오성']);
-    expect(detectContextualName('19.신분증사본_홍진.png').map((s) => s.text)).toEqual(['홍진']);
+    // hintOnly cell은 사적 PII 컨텍스트로 확정됨 — 일반어 false positive(예: "신분증")가 함께
+    // 잡혀도 어차피 셀 전체가 가려질 거라 over-match가 안전. 핵심 이름이 잡히는지만 검증.
+    expect(detectContextualName('4.통장사본_박영.pdf').map((s) => s.text)).toContain('박영');
+    expect(detectContextualName('12.오성_신분증_1.jpg').map((s) => s.text)).toContain('오성');
+    expect(detectContextualName('19.신분증사본_홍진.png').map((s) => s.text)).toContain('홍진');
   });
 
   it('boundary 양쪽이 한글이면 미매치 (일반 단어 차단)', async () => {
@@ -506,14 +503,14 @@ describe('detectContextualName (2자 이름 컨텍스트 매치)', () => {
   });
 });
 
-describe('NAME_WITH_TITLE 4자 이름 (title-context)', () => {
+describe('NAME_WITH_TITLE 4자 이름 (title-context, hintOnly cell)', () => {
   it('단성+3자 + 직책 (김아무개 박사 / 정아무개 교수)', () => {
-    expect(detectKoreanPII('김아무개 박사').find((s) => s.category === 'person_name')?.text)
+    expect(detectContextualName('김아무개 박사').find((s) => s.category === 'person_name')?.text)
       .toBe('김아무개');
   });
 
   it('복성+3자 + 직책 (남궁아무개 교수)', () => {
-    expect(detectKoreanPII('남궁아무개 교수').find((s) => s.category === 'person_name')?.text)
+    expect(detectContextualName('남궁아무개 교수').find((s) => s.category === 'person_name')?.text)
       .toBe('남궁아무개');
   });
 });
