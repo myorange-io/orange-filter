@@ -327,6 +327,38 @@ describe('detectKoreanPII', () => {
     }
   });
 
+  it('Finding 1: 자연 문장 안 이름 + 한국어 조사 매칭 (조성도입니다 / 김민수씨 / 박지영님)', () => {
+    // 자연 한국어 문장에서 이름 뒤에 조사·접미사가 붙어도 매치돼야 한다.
+    const cases: Array<[string, string]> = [
+      ['안녕하세요, 조성도입니다.', '조성도'],
+      ['김민수씨에게 전달했습니다', '김민수'],
+      ['박지영님께 문의', '박지영'],
+      ['홍길동은 어디 있나?', '홍길동'],
+      ['이순신이라고 합니다', '이순신'],
+      ['최영민의 책', '최영민'],
+      ['김상철도 같이 왔다', '김상철'],
+    ];
+    for (const [text, expected] of cases) {
+      const spans = detectKoreanPII(text);
+      const names = spans.filter((s) => s.category === 'person_name');
+      expect(names.map((n) => n.text), `case "${text}"`).toContain(expected);
+    }
+  });
+
+  it('Finding 1: 조사 화이트리스트가 4자 한자어 FP를 만들지 않음', () => {
+    // "한국문화", "주요내용" 같은 4자 한자어는 stoplist 또는 길이 제한으로 차단.
+    // (조사 lookahead는 NAME_BARE 끝 boundary 완화이지 4자 매치 추가가 아님)
+    for (const text of ['한국문화는 다양', '주요내용은 다음', '연구결과의 의의']) {
+      const spans = detectKoreanPII(text);
+      // 3자 NAME_BARE 매치는 가능하지만 stoplist에 들어있는 경우만 차단되어야 한다.
+      // 본 테스트는 "기존 stoplist가 의도대로 작동" 여부의 sanity check.
+      const names = spans.filter((s) => s.category === 'person_name');
+      // 무엇이 매치되든 명백한 일반명사 그대로는 등장하지 않아야 한다.
+      expect(names.map((n) => n.text)).not.toContain('한국문');
+      expect(names.map((n) => n.text)).not.toContain('주요내');
+    }
+  });
+
   it('계좌번호와 카드번호가 충돌하면 카드 우선 (Luhn 통과 시)', () => {
     // 4242-4242-4242-4242는 16자리 + Luhn 통과 → card로
     const text = '계좌인지 카드인지: 4242-4242-4242-4242';
