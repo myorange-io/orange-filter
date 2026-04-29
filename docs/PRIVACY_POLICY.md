@@ -1,6 +1,6 @@
-# 오렌지 필터 개인정보 처리방침 (Privacy Policy)
+# Orange Filter 개인정보 처리방침 (Privacy Policy)
 
-**서비스명**: 오렌지 필터 (Chrome Extension)
+**서비스명**: Orange Filter (Chrome Extension)
 **버전**: 0.0.1
 **시행일**: 2026-04-28
 **문의**: pengdo@myorange.io

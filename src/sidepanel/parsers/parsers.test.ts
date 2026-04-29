@@ -175,6 +175,110 @@ describe('XLSX parser (sample 픽스처)', () => {
   });
 });
 
+describe('XLSX docProps + cell comments 마스킹 (v1.3)', () => {
+  test('Workbook.Props (Title/Author/Company)가 segment로 노출되고 마스킹 round-trip', async () => {
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.aoa_to_sheet([['이름'], ['홍길동']]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    wb.Props = {
+      Title: '2024년 결산공시',
+      Author: '홍길동',
+      Company: '한국NPO재단',
+      Keywords: 'NPO, 결산',
+    };
+    const buf = XLSX.write(wb, {
+      type: 'array',
+      bookType: 'xlsx',
+      Props: wb.Props,
+    }) as Uint8Array;
+    const file = new File([buf], 'test.xlsx');
+
+    const parsed = await parseXlsx(file);
+    const ids = parsed.segments.map((s) => s.id);
+    expect(ids).toContain('xlsxprops::Title');
+    expect(ids).toContain('xlsxprops::Author');
+    expect(ids).toContain('xlsxprops::Company');
+
+    const masked = new Map<string, string>();
+    for (const seg of parsed.segments) {
+      if (seg.text === '홍길동') masked.set(seg.id, '[NAME]');
+    }
+    const outBlob = await exportXlsx(file, masked);
+    const reBuf = await outBlob.arrayBuffer();
+    const reFile = new File([reBuf], 'test.xlsx');
+    const reParsed = await parseXlsx(reFile);
+    const reTexts = reParsed.segments.map((s) => s.text);
+    // Author(홍길동)와 본문 셀(홍길동) 모두 마스킹돼 사라져야 함.
+    expect(reTexts).not.toContain('홍길동');
+    expect(reTexts).toContain('[NAME]');
+  });
+
+  test('Cell comments 본문이 segment로 노출 (author는 SheetJS write에서 손실 가능 — text만 검증)', async () => {
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.aoa_to_sheet([['셀1']]);
+    if (ws.A1) {
+      (ws.A1 as { c?: Array<{ a: string; t: string }> }).c = [
+        { a: '김철수', t: '확인 요망: 010-1234-5678' },
+      ];
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
+    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as Uint8Array;
+    const file = new File([buf], 'test.xlsx');
+
+    const parsed = await parseXlsx(file);
+    const commentSegs = parsed.segments.filter((s) => s.id.startsWith('xlsxcomment::'));
+    expect(commentSegs.length).toBeGreaterThanOrEqual(1);
+    expect(commentSegs.some((s) => s.text.includes('010-1234-5678'))).toBe(true);
+  });
+});
+
+describe.skip('PDF metadata 마스킹 (v1.3) — 단위 테스트 skip', () => {
+  // pdf.ts top-level에서 pdfjs-dist가 DOMMatrix 등 DOM API를 요구해 vitest 'node'
+  // 환경에서 import 자체가 실패. PDF metadata 회귀는 브라우저 e2e 또는 sample 픽스처에서
+  // 검증한다. 단위 테스트 시도는 환경 의존성을 만들기에 skip.
+  test('exportPdf가 마스킹된 metadata를 새 PDF에 적용 (Title/Author/Subject/Keywords)', async () => {
+    const { PDFDocument } = await import('pdf-lib');
+    const orig = await PDFDocument.create();
+    orig.addPage([595, 842]);
+    const origBytes = await orig.save();
+    const file = new File([origBytes as BlobPart], 'test.pdf');
+
+    const { exportPdf } = await import('./pdf');
+    const masked = new Map<string, string>();
+    masked.set('p1', '본문');
+    masked.set('pdfmeta::Title', '[TITLE]');
+    masked.set('pdfmeta::Author', '[NAME]');
+    masked.set('pdfmeta::Subject', '[SUBJECT]');
+    masked.set('pdfmeta::Keywords', 'masked, kw');
+
+    const outBlob = await exportPdf(file, masked);
+    const reBytes = new Uint8Array(await outBlob.arrayBuffer());
+    const reDoc = await PDFDocument.load(reBytes);
+    expect(reDoc.getTitle()).toBe('[TITLE]');
+    expect(reDoc.getAuthor()).toBe('[NAME]');
+    expect(reDoc.getSubject()).toBe('[SUBJECT]');
+    expect(reDoc.getKeywords()).toContain('masked');
+  });
+
+  test('exportPdf — 마스킹 segment가 없으면 metadata 비움 (v1 안전 기본값)', async () => {
+    const { PDFDocument } = await import('pdf-lib');
+    const orig = await PDFDocument.create();
+    orig.addPage([595, 842]);
+    const origBytes = await orig.save();
+    const file = new File([origBytes as BlobPart], 'test.pdf');
+
+    const { exportPdf } = await import('./pdf');
+    const outBlob = await exportPdf(file, new Map([['p1', '본문']]));
+    const reBytes = new Uint8Array(await outBlob.arrayBuffer());
+    const reDoc = await PDFDocument.load(reBytes);
+    // 새로 만든 PDFDocument의 기본 metadata는 빈 문자열 또는 undefined.
+    expect(reDoc.getTitle() ?? '').toBe('');
+    expect(reDoc.getAuthor() ?? '').toBe('');
+  });
+});
+
 describe('table-walker (hwpx section 표)', () => {
   test('hwpx 표 안의 헤더 인식', async () => {
     const JSZip = (await import('jszip')).default;
