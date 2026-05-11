@@ -12,6 +12,7 @@ export type PIICategory =
   | 'person_name'
   | 'email'
   | 'address'
+  | 'postal_code'
   | 'url'
   | 'date'
   | 'credential'

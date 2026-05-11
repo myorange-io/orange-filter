@@ -22,7 +22,9 @@ import {
 import type { MaskMode, PIICategory } from '@/shared/types';
 import { FileDropZone } from './FileDropZone';
 import { FileQueueList } from './FileQueueList';
+import { FileReviewDialog } from './FileReviewDialog';
 import { GateScreen, useModelCached } from './GateScreen';
+import { Switch } from '@/shared/ui/switch';
 import { useFileQueue } from './use-file-queue';
 
 export function App() {
@@ -31,6 +33,7 @@ export function App() {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [newDomain, setNewDomain] = useState('');
   const [activeTab, setActiveTab] = useState<'filter' | 'settings'>('filter');
+  const [reviewItemId, setReviewItemId] = useState<string | null>(null);
   // 모델 cached 여부 — 미설치면 GateScreen만 표시 (사용자 정의: 모델 설치 후에만 사용 가능).
   const modelStatus = useModelCached();
   const [gatePassed, setGatePassed] = useState(false);
@@ -82,6 +85,17 @@ export function App() {
       whitelistedDomains: settings.whitelistedDomains.filter((x) => x !== d),
     });
   };
+
+  const setAutoApply = (autoApplyMaskWithoutReview: boolean) =>
+    persist({ ...settings, autoApplyMaskWithoutReview });
+
+  // 검토 중 큐 항목이 제거되거나 사라지면 모달 자동 닫음.
+  const reviewItem =
+    reviewItemId !== null
+      ? queue.items.find((it) => it.id === reviewItemId) ?? null
+      : null;
+  // 검토 항목이 사라졌으면 모달 닫기 (이펙트 대신 derived state로).
+  const reviewOpen = reviewItem !== null && reviewItem.status === 'reviewing';
 
   const enabledCount = CATEGORY_ORDER.filter(
     (c) => settings.enabledByCategory[c] ?? false,
@@ -146,7 +160,11 @@ export function App() {
               });
             }}
           />
-          <FileQueueList items={queue.items} onRemove={queue.remove} />
+          <FileQueueList
+            items={queue.items}
+            onRemove={queue.remove}
+            onReview={(id) => setReviewItemId(id)}
+          />
           {queue.items.length > 0 && (
             <button
               type="button"
@@ -221,6 +239,21 @@ export function App() {
             </section>
 
             <section className="rounded-lg border bg-card p-4">
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <h2 className="text-base font-bold">파일 검토</h2>
+                <Switch
+                  checked={settings.autoApplyMaskWithoutReview}
+                  onCheckedChange={setAutoApply}
+                  aria-label="검토 없이 자동 가리기"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                기본은 파일을 다운로드하기 전에 어떤 항목이 가려질지 검토할 수 있어요.
+                위 스위치를 켜면 검토 없이 즉시 가리고 자동 다운로드합니다.
+              </p>
+            </section>
+
+            <section className="rounded-lg border bg-card p-4">
               <h2 className="mb-1 text-base font-bold">허용 사이트</h2>
               <p className="mb-3 text-xs text-muted-foreground">
                 여기에 등록한 사이트에서는 붙여넣기 알림이 뜨지 않아요.
@@ -285,6 +318,18 @@ export function App() {
           </p>
         </footer>
       </main>
+      <FileReviewDialog
+        open={reviewOpen}
+        onOpenChange={(o) => {
+          if (!o) setReviewItemId(null);
+        }}
+        item={reviewItem}
+        onConfirm={(id, keys) => {
+          queue.setItemEnabledSpanKeys(id, keys);
+          setReviewItemId(null);
+          void queue.confirmReview(id);
+        }}
+      />
       <Toaster />
     </TooltipProvider>
   );

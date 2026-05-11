@@ -130,6 +130,66 @@ const CORPORATE_REG_PATTERN = /\b\d{6}-\d{7}\b/g;
 // 정규식 detector 제거 + NER ORG/COMPANY 라벨도 mapLabel에서 null 매핑 (model-runtime.ts).
 
 // =============================================================================
+// 날짜 — 생년월일·결재일 등 PII로 간주될 수 있는 절대 날짜
+// =============================================================================
+// YYYY-MM-DD, YYYY.M.D, YYYY/MM/DD, YYYY년 M월 D일 형식.
+// 연도는 1900~2099로 보수적 제한 (문서 일자 + 생년월일 커버).
+// 월·일 sanity는 detectDate에서 검증.
+const DATE_NUMERIC_PATTERN =
+  /\b(19|20)\d{2}[-./](0?[1-9]|1[0-2])[-./](0?[1-9]|[12]\d|3[01])\b/g;
+// 한국어: 1990년 1월 1일 / 1990년 01월 01일
+const DATE_KOREAN_PATTERN =
+  /\b(19|20)\d{2}년\s?(0?[1-9]|1[0-2])월\s?(0?[1-9]|[12]\d|3[01])일/g;
+
+// =============================================================================
+// 우편번호 — 한국 5자리 (00000~69999)
+// =============================================================================
+// 한국우편번호 체계: 신주소 우편번호 5자리, 범위 0XXXX~6XXXX (실제 6XXXX 후반부는 미사용).
+// false positive 차단: 5자리 숫자는 흔하므로 boundary(\b)에 더해, 앞뒤가 영문/숫자가 아닌 경우만.
+// 너무 좁으면 누락 — 라벨 동반('우편번호', '[우]') 또는 5자리 자체 boundary 매치.
+const POSTAL_CODE_PATTERN = /(?<![A-Za-z0-9가-힣])[0-6]\d{4}(?![A-Za-z0-9가-힣])/g;
+
+// =============================================================================
+// 한국 주소 — 시도 + 시군구 + 도로/동명 + 상세
+// =============================================================================
+// 17개 광역자치단체 (2024 기준).
+const KR_PROVINCES = [
+  '서울특별시','서울시','서울',
+  '부산광역시','부산시','부산',
+  '대구광역시','대구시','대구',
+  '인천광역시','인천시','인천',
+  '광주광역시','광주시','광주',
+  '대전광역시','대전시','대전',
+  '울산광역시','울산시','울산',
+  '세종특별자치시','세종시','세종',
+  '경기도','경기',
+  '강원특별자치도','강원도','강원',
+  '충청북도','충북',
+  '충청남도','충남',
+  '전북특별자치도','전라북도','전북',
+  '전라남도','전남',
+  '경상북도','경북',
+  '경상남도','경남',
+  '제주특별자치도','제주도','제주',
+];
+const KR_PROVINCE_PATTERN = KR_PROVINCES.join('|');
+// 시도 + (선택적) 시·군·구 + 동/로/길 + 번지/동호수까지. lookahead로 끝 boundary.
+// 짧은 false positive(예: '서울 본부') 차단을 위해 도로명/동명/번지 중 1+ 토큰을 요구.
+//
+// 마지막 상세 부분: `5, 5-678` 같은 "번지 + 동호수" 형식까지 잡으려면 클래스에 공백·콤마
+// 포함. 다음 줄로 새지 않게 줄바꿈은 제외 (\n/\r 제외, [ \t]만).
+const ADDRESS_PATTERN = new RegExp(
+  `(?:${KR_PROVINCE_PATTERN})` +
+    // 시·군·구 (선택)
+    `(?:\\s+[가-힣]{1,10}(?:시|군|구))?` +
+    // 동·로·길 + 번지 (필수, 최소 1개)
+    `\\s+[가-힣A-Za-z0-9]{1,20}(?:동|로|길|읍|면|리)` +
+    // 번지·도로명 번호·동호수 상세 (선택). 공백·콤마·하이픈 포함.
+    `(?:[ \\t,0-9가-힣\\-]{0,40})?`,
+  'g',
+);
+
+// =============================================================================
 // P2-1: 은행 prefix 기반 계좌번호 (정규식 패턴 화이트리스트 미포함 형식 보강)
 // =============================================================================
 // 회귀 테스트 코퍼스에서 다룬 자릿수 형식들:
@@ -360,6 +420,15 @@ const NAME_BARE_STOPLIST: ReadonlySet<string> = new Set([
   '서비스', '서비스',
   '심사위', '심사를', '심사한', '심사진', '심사평', '심사의',
   '신문지', '신문사', '신문기',
+  // v1.4 — paste/file 흐름에서 NAME_BARE 활성화에 따른 추가 일반어 차단
+  '조달청', '선착순', '노트북', '하반기', '서울역', '서울숲', '서울대',
+  '한국사', '한국공', '한국적', '한국형', '한국기',
+  '진흥원', '연구원', '연구진', '연구실',
+  '성장지', '성장기', '성장세', '성장률',
+  '주차장', '주차권', '주차장',
+  '도서관', '도구함', '도면집',
+  '오전반', '오후반',
+  '하루의', '하루는', '하루도', '하루만',
 ]);
 
 // =============================================================================
@@ -592,6 +661,87 @@ function detectCorporateRegistration(text: string): RawMatch[] {
 // 한국 이름 정규식 detector는 detectContextualName으로 일원화 (nameHintOnly 셀 한정).
 // 일반 본문의 사람 이름은 NER이 책임. 조직명 detector는 v1.3에서 제거 — 사용자 정의상 PII 아님.
 
+function detectDate(text: string): RawMatch[] {
+  const out: RawMatch[] = [];
+  for (const m of text.matchAll(DATE_NUMERIC_PATTERN)) {
+    if (m.index === undefined) continue;
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    if (month < 1 || month > 12) continue;
+    if (day < 1 || day > (DAYS_IN_MONTH[month - 1] ?? 31)) continue;
+    // 영문 version/build/release 컨텍스트 차단 — '2024.05.10'은 날짜 아니라 버전.
+    const before = text.slice(Math.max(0, m.index - 20), m.index);
+    if (/\b(version|build|release|patch|rev|tag|v)\s+$/i.test(before)) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'date',
+      confidence: 0.7,
+    });
+  }
+  for (const m of text.matchAll(DATE_KOREAN_PATTERN)) {
+    if (m.index === undefined) continue;
+    const month = Number(m[2]);
+    const day = Number(m[3]);
+    if (month < 1 || month > 12) continue;
+    if (day < 1 || day > (DAYS_IN_MONTH[month - 1] ?? 31)) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'date',
+      confidence: 0.85,
+    });
+  }
+  return out;
+}
+
+function detectPostalCode(text: string): RawMatch[] {
+  const out: RawMatch[] = [];
+  for (const m of text.matchAll(POSTAL_CODE_PATTERN)) {
+    if (m.index === undefined) continue;
+    const before = text.slice(Math.max(0, m.index - 20), m.index);
+    const hasLabel = /우편\s?번호|\b(?:zip|postal)/i.test(before);
+    // 영문 version/build/release 컨텍스트 차단 — 'build 12345'는 우편번호 아님.
+    if (/\b(version|build|release|patch|rev|tag|v|no|num|number|id|port|pid)\s*[:#]?\s*$/i.test(before)) continue;
+    // label 없는 단독 5자리는 한국어 컨텍스트 요구 — 영문 본문 false positive 차단.
+    if (!hasLabel) {
+      const around = text.slice(
+        Math.max(0, m.index - 30),
+        Math.min(text.length, m.index + m[0].length + 30),
+      );
+      if (!/[가-힣]/.test(around)) continue;
+    }
+    const confidence = hasLabel ? 0.9 : 0.55;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'postal_code',
+      confidence,
+    });
+  }
+  return out;
+}
+
+function detectAddress(text: string): RawMatch[] {
+  const out: RawMatch[] = [];
+  for (const m of text.matchAll(ADDRESS_PATTERN)) {
+    if (m.index === undefined) continue;
+    // trailing 공백·콤마·하이픈 trim — `5, ` 같은 꼬리 정리.
+    const matched = m[0].replace(/[\s,\-]+$/, '');
+    out.push({
+      start: m.index,
+      end: m.index + matched.length,
+      text: matched,
+      category: 'address',
+      confidence: 0.75,
+    });
+  }
+  return out;
+}
+
 // =============================================================================
 // P2-1: 은행 prefix 계좌번호 detector
 // =============================================================================
@@ -640,6 +790,7 @@ const CATEGORY_PRIORITY: Record<PIICategory, number> = {
   email: 60,
   person_name: 50,
   address: 40,
+  postal_code: 35,
   organization: 30,
   url: 20,
   date: 10,
@@ -792,16 +943,101 @@ export function detectContextualName(text: string): PIISpan[] {
   }));
 }
 
+/**
+ * 일반 본문에서도 안전하게 쓸 수 있는 이름 detector — boundary 제한이 강한
+ * NAME_BARE(3자) + NAME_WITH_TITLE(직책 동반) + FILENAME_NAME_TOKEN +
+ * ROMAN_NAME_PATTERN만 사용. detectContextualName의 NAME_2CHAR/NAME_4CHAR는
+ * 일반 본문 false positive가 압도적이라 제외 (이는 nameHintOnly 셀에서만 사용).
+ *
+ * v1.4: 사용자 보고 — paste 흐름에서 한국어 NER가 짧은 한글 이름(조성도)을
+ * 놓치고 영문 subword(do)를 false positive로 출력하는 문제. 정규식 안전망으로 보강.
+ * Stoplist + 직책 차단으로 일반어 false positive는 기존 수준 유지.
+ */
+export function detectGeneralName(text: string): PIISpan[] {
+  const out: PIISpan[] = [];
+  for (const m of text.matchAll(NAME_BARE)) {
+    if (m.index === undefined) continue;
+    const matched = m[0];
+    if (NAME_BARE_STOPLIST.has(matched)) continue;
+    if (TITLE_SET.has(matched)) continue;
+    const last = matched[matched.length - 1]!;
+    if ('을를이가은는의에께와과로'.includes(last)) continue;
+    out.push({
+      start: m.index,
+      end: m.index + matched.length,
+      text: matched,
+      category: 'person_name',
+      confidence: 0.6,
+      source: 'regex',
+    });
+  }
+  for (const m of text.matchAll(NAME_WITH_TITLE)) {
+    if (m.index === undefined) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'person_name',
+      confidence: 0.85,
+      source: 'regex',
+    });
+  }
+  for (const m of text.matchAll(FILENAME_NAME_TOKEN)) {
+    if (m.index === undefined) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'person_name',
+      confidence: 0.7,
+      source: 'regex',
+    });
+  }
+  for (const m of text.matchAll(ROMAN_NAME_PATTERN)) {
+    if (m.index === undefined) continue;
+    if (ROMAN_NAME_STOPLIST.has(m[0])) continue;
+    out.push({
+      start: m.index,
+      end: m.index + m[0].length,
+      text: m[0],
+      category: 'person_name',
+      confidence: 0.5,
+      source: 'regex',
+    });
+  }
+  const raw: RawMatch[] = out.map((s) => ({
+    start: s.start,
+    end: s.end,
+    text: s.text,
+    category: s.category,
+    confidence: s.confidence,
+  }));
+  return dedupe(raw).map((m) => ({
+    start: m.start,
+    end: m.end,
+    text: m.text,
+    category: m.category,
+    confidence: m.confidence,
+    source: 'regex' as const,
+  }));
+}
+
 // =============================================================================
 // Public entry
 // =============================================================================
 
 export function detectKoreanPII(text: string): PIISpan[] {
-  // 일반 본문에서는 사람 이름·조직명을 정규식으로 잡지 않는다.
-  //   - 조직명: 사용자 정의상 PII가 아님 (한국사회적기업진흥원·조달청·협동조합 등 모두 제외).
-  //   - 사람 이름: NER(AEGIS 한국어 mBERT)이 컨텍스트 보고 잡는다. 정규식 NAME_BARE는
-  //     "선착순/노트북/하반기/조달청" 같은 일반어 FP가 압도적이라 일반 본문에서 끔.
-  //     표 PII 컬럼(nameHintOnly)에서는 detectContextualName으로 별도 보강.
+  // 일반 본문에서 사람 이름은 detectGeneralName(NAME_BARE/NAME_WITH_TITLE/
+  // FILENAME_NAME_TOKEN/ROMAN_NAME_PATTERN)으로 잡는다. boundary 제한 2자/4자
+  // 패턴은 nameHintOnly 셀 한정 detectContextualName에서만 사용.
+  // 조직명은 사용자 정의상 PII가 아니라 정규식·NER 모두 제외.
+  const generalNames = detectGeneralName(text).map<RawMatch>((s) => ({
+    start: s.start,
+    end: s.end,
+    text: s.text,
+    category: s.category,
+    confidence: s.confidence,
+  }));
   const raw: RawMatch[] = [
     ...detectRRN(text),
     ...detectForeignerRegistration(text),
@@ -816,6 +1052,10 @@ export function detectKoreanPII(text: string): PIISpan[] {
     ...detectEmail(text),
     ...detectCredential(text),
     ...detectBankAccount(text),
+    ...detectDate(text),
+    ...detectPostalCode(text),
+    ...detectAddress(text),
+    ...generalNames,
   ];
   return dedupe(raw).map((m) => ({
     start: m.start,

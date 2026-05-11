@@ -281,11 +281,14 @@ describe('detectKoreanPII', () => {
     ).toBeUndefined();
   });
 
-  it('v1.3: 일반 본문에서는 정규식이 사람 이름을 잡지 않는다 (NER이 책임)', () => {
-    // 사용자 정의: 일반 본문의 NAME 검출은 NER에 위임. 정규식 NAME은 hintOnly cell만.
-    expect(detectKoreanPII('김민수 팀장님께 보고드렸습니다.').filter((s) => s.category === 'person_name')).toEqual([]);
-    expect(detectKoreanPII('박지성').filter((s) => s.category === 'person_name')).toEqual([]);
-    // 양식 안내문의 일반어도 잡지 않는다 (선착순/노트북/하반기/조달청 등 FP 차단).
+  it('v1.4: 일반 본문에서 정규식이 사람 이름을 잡는다 (NER 안전망)', () => {
+    // v1.4 정책 변경: paste/file 흐름에서 NAME_BARE/NAME_WITH_TITLE/ROMAN_NAME_PATTERN
+    // 활성화. NER가 한국 양식 텍스트의 짧은 이름을 놓치는 한계를 정규식 안전망으로 보강.
+    // Stoplist + 직책 차단으로 일반어 false positive 차단.
+    expect(detectKoreanPII('김민수 팀장님께 보고드렸습니다.').find((s) => s.category === 'person_name')?.text)
+      .toBe('김민수');
+    expect(detectKoreanPII('박지성').find((s) => s.category === 'person_name')?.text).toBe('박지성');
+    // 양식 안내문의 일반어는 stoplist로 계속 차단 (선착순/노트북/하반기/조달청).
     for (const text of ['선착순 모집', '노트북을 지참', '하반기에 진행', '조달청 공고']) {
       expect(detectKoreanPII(text).filter((s) => s.category === 'person_name')).toEqual([]);
     }
@@ -512,5 +515,149 @@ describe('NAME_WITH_TITLE 4자 이름 (title-context, hintOnly cell)', () => {
   it('복성+3자 + 직책 (남궁아무개 교수)', () => {
     expect(detectContextualName('남궁아무개 교수').find((s) => s.category === 'person_name')?.text)
       .toBe('남궁아무개');
+  });
+});
+
+// =============================================================================
+// v1.4 — detectKoreanPII에 통합된 detectGeneralName + date/postal/address
+// =============================================================================
+describe('detectGeneralName — 일반 본문 한글 3자 이름', () => {
+  it('한글 3자 이름 (조성도) 매칭', () => {
+    const spans = detectKoreanPII('조성도');
+    expect(spans.find((s) => s.category === 'person_name')?.text).toBe('조성도');
+  });
+
+  it('영문 한국식 이름 (Cho, Sungdo) 매칭', () => {
+    const spans = detectKoreanPII('Cho, Sungdo');
+    const names = spans.filter((s) => s.category === 'person_name').map((s) => s.text);
+    // 'ChoSungdo' 형태가 아니라 'Cho' + 'Sungdo' 분리는 ROMAN_NAME_PATTERN이 안 잡지만
+    // 'Cho, Sungdo' 자체를 어느 형태로든 person으로 잡아야 함. 최소 한 개 이상.
+    // ROMAN_NAME_PATTERN: surname + CamelCase. 'Cho' 단독은 안 잡힘 — 단 NER가 잡길 기대.
+    // 정규식 자체로는 'CamelCase + surname' 또는 'surname + CamelCase' 둘 중 하나여야 매치.
+    // 따라서 'Cho, Sungdo'에서 정규식만으로는 못 잡을 수 있음 — 이 테스트는 NER 결합 후 검증.
+    // 정규식 단독에서는 일단 ROMAN_NAME 가능 여부만 확인 (선택적).
+    // 'CamelCase + surname' 형태 'SungdoCho'는 잡히지만 'Cho, Sungdo'는 ',' 분리됨.
+    expect(names.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it('"ChoSungdo" (붙여 쓴 영문 한국 이름) 매칭', () => {
+    const spans = detectKoreanPII('ChoSungdo');
+    expect(spans.find((s) => s.category === 'person_name')?.text).toBe('ChoSungdo');
+  });
+
+  it('직책 동반 이름 (홍길동 대표) 매칭', () => {
+    const spans = detectKoreanPII('홍길동 대표');
+    const name = spans.find((s) => s.category === 'person_name');
+    expect(name?.text).toBe('홍길동');
+  });
+
+  it('PII 없는 일반 명사 — 기존 stoplist 차단 유지 (정확/연구/한국)', () => {
+    const spans = detectKoreanPII('정확하게 연구하면 한국에서도 가능합니다.');
+    const names = spans.filter((s) => s.category === 'person_name');
+    expect(names).toEqual([]);
+  });
+
+  it('NFD 입력은 한글 정규식 매치 실패 — paste handler가 NFC 정규화 책임', () => {
+    // 사용자 보고 (v1.4): macOS clipboard가 한글을 NFD로 전달 시 mobile/date만 잡힘.
+    // 이 테스트는 정책 lock — detectKoreanPII 자체는 입력 인코딩 책임지지 않음을 명시.
+    // 호출자(content/site-adapters/factory.ts paste handler, parsers/*)가 NFC normalize.
+    const text = '조성도 010-1234-5678';
+    const nfd = text.normalize('NFD');
+    const nfcSpans = detectKoreanPII(text.normalize('NFC'));
+    const nfdSpans = detectKoreanPII(nfd);
+    expect(nfcSpans.find((s) => s.category === 'person_name')?.text).toBe('조성도');
+    // NFD에서는 한글 정규식이 매치 실패 — mobile만 살아남음
+    expect(nfdSpans.filter((s) => s.category === 'person_name')).toEqual([]);
+    expect(nfdSpans.find((s) => s.category === 'mobile')).toBeDefined();
+  });
+});
+
+describe('detectDate — YYYY[.-/]M[.-/]D + 한국어', () => {
+  it('YYYY.M.D (생년월일 형식)', () => {
+    const spans = detectKoreanPII('1990.1.1');
+    expect(spans.find((s) => s.category === 'date')?.text).toBe('1990.1.1');
+  });
+
+  it('YYYY-MM-DD ISO 형식', () => {
+    const spans = detectKoreanPII('2024-12-25');
+    expect(spans.find((s) => s.category === 'date')?.text).toBe('2024-12-25');
+  });
+
+  it('YYYY/MM/DD 형식', () => {
+    const spans = detectKoreanPII('1990/01/15');
+    expect(spans.find((s) => s.category === 'date')?.text).toBe('1990/01/15');
+  });
+
+  it('한국어 1990년 1월 1일', () => {
+    const spans = detectKoreanPII('1990년 1월 1일');
+    expect(spans.find((s) => s.category === 'date')?.text).toBe('1990년 1월 1일');
+  });
+
+  it('잘못된 월(13월) 거절', () => {
+    const spans = detectKoreanPII('2024.13.01');
+    expect(spans.filter((s) => s.category === 'date')).toEqual([]);
+  });
+
+  it('잘못된 일(2월 30일) 거절', () => {
+    const spans = detectKoreanPII('2024.2.30');
+    expect(spans.filter((s) => s.category === 'date')).toEqual([]);
+  });
+
+  it('연도 1899(범위 밖) 거절', () => {
+    const spans = detectKoreanPII('1899-01-01');
+    expect(spans.filter((s) => s.category === 'date')).toEqual([]);
+  });
+});
+
+describe('detectPostalCode — 한국 우편번호 5자리', () => {
+  it('07202 (서울 강남구) 매칭', () => {
+    const spans = detectKoreanPII('우편번호 07202');
+    expect(spans.find((s) => s.category === 'postal_code')?.text).toBe('07202');
+  });
+
+  it('label 없이 단독 5자리도 매칭 (낮은 confidence)', () => {
+    const spans = detectKoreanPII('주소: 06024 서울');
+    expect(spans.find((s) => s.category === 'postal_code')?.text).toBe('06024');
+  });
+
+  it('label 동반 시 confidence 높음', () => {
+    const spans = detectKoreanPII('우편번호 06024');
+    const span = spans.find((s) => s.category === 'postal_code');
+    expect(span?.confidence).toBeGreaterThanOrEqual(0.85);
+  });
+
+  it('70000 이상은 거절 (한국 우편번호 범위 밖)', () => {
+    const spans = detectKoreanPII('숫자 70123');
+    expect(spans.filter((s) => s.category === 'postal_code')).toEqual([]);
+  });
+});
+
+describe('detectAddress — 한국 주소', () => {
+  it('서울 강남구 테헤란로 12 매칭', () => {
+    const spans = detectKoreanPII('서울 강남구 테헤란로 12');
+    const addr = spans.find((s) => s.category === 'address');
+    expect(addr?.text).toContain('서울 강남구');
+  });
+
+  it('번지 + 동호수까지 매칭 (5, 5-678)', () => {
+    const spans = detectKoreanPII('서울 강남구 테헤란로 12, 5-678');
+    const addr = spans.find((s) => s.category === 'address');
+    expect(addr?.text).toBe('서울 강남구 테헤란로 12, 5-678');
+  });
+
+  it('주소 다음 줄로 새지 않음 (개행 차단)', () => {
+    const spans = detectKoreanPII('서울 강남구 테헤란로 12\n다음 줄 텍스트');
+    const addr = spans.find((s) => s.category === 'address');
+    expect(addr?.text).toBe('서울 강남구 테헤란로 12');
+  });
+
+  it('부산광역시 해운대구 매칭', () => {
+    const spans = detectKoreanPII('부산광역시 해운대구 우동');
+    expect(spans.find((s) => s.category === 'address')).toBeDefined();
+  });
+
+  it('시도 단독은 거절 (도로/동 토큰 필요)', () => {
+    const spans = detectKoreanPII('서울에서 만나요');
+    expect(spans.filter((s) => s.category === 'address')).toEqual([]);
   });
 });

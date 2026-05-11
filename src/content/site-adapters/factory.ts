@@ -27,7 +27,11 @@ export function createPasteAdapter(config: AdapterConfig): SiteAdapter {
         if (evt.defaultPrevented) return;
         if (!(evt.target instanceof HTMLElement)) return;
         if (!config.isInput(evt.target)) return;
-        const text = evt.clipboardData?.getData('text/plain') ?? '';
+        // NFC 정규화 — macOS clipboard나 일부 양식이 한글을 NFD(자모 분해)로 전달하면
+        // 한글 정규식([가-힣])이 매치 못 함. ASCII 패턴(mobile/date)은 영향 없지만
+        // 한글 person_name/address/postal_code/한국어 컨텍스트가 모두 fail.
+        // sample/* 파일 파서들은 각자 NFC 정규화하지만 paste 흐름은 빠져 있었다.
+        const text = (evt.clipboardData?.getData('text/plain') ?? '').normalize('NFC');
         if (!text) return;
 
         evt.preventDefault();

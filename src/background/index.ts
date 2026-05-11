@@ -10,6 +10,7 @@
 import { detectKoreanPII } from './pii/regex';
 import { maskText } from './pii/mask';
 import { mergeSpans } from './pii/merge';
+import { filterNerFalsePositives } from './pii/ner-filter';
 import { pickModel, type ModelTier, type UserMode } from './pii/router';
 import { ALL_MODELS, getModelByTier, TIER1_DEFAULT } from '@/shared/models';
 import type { DetectResult, PIISpan } from '@/shared/types';
@@ -95,6 +96,8 @@ async function detect(text: string, userMode: UserMode = 'default'): Promise<Det
   let model: PIISpan[] = [];
   try {
     model = await detectViaModel(text, modelId);
+    // NER false positive 필터 — 짧은 영문 토큰('do'/'is')의 person_name 오인 차단.
+    model = filterNerFalsePositives(model);
   } catch (err) {
     // 모델이 아직 로딩 중이거나 실패 — 정규식 결과만 사용.
     console.warn('[npo-privacy] model detect failed, regex-only:', err);

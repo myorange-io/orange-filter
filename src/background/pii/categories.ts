@@ -111,6 +111,14 @@ export const CATEGORIES: Record<PIICategory, CategoryDefinition> = {
     defaultMaskMode: 'shape',
     sources: ['model', 'regex'],
   },
+  postal_code: {
+    id: 'postal_code',
+    labelKo: '우편번호',
+    labelEn: 'Postal Code',
+    defaultEnabled: true,
+    defaultMaskMode: 'shape',
+    sources: ['regex'],
+  },
   url: {
     id: 'url',
     labelKo: 'URL',
@@ -123,9 +131,11 @@ export const CATEGORIES: Record<PIICategory, CategoryDefinition> = {
     id: 'date',
     labelKo: '날짜',
     labelEn: 'Date',
-    defaultEnabled: false,
+    // v1.4: 정규식(YYYY[.-/]M[.-/]D + 한국어) 추가 → default ON. 생년월일이 PII로 흔함.
+    // false positive(버전 번호 등)는 prefix 차단 + 사용자 토글로 흡수.
+    defaultEnabled: true,
     defaultMaskMode: 'tag',
-    sources: ['model'],
+    sources: ['regex', 'model'],
   },
   credential: {
     id: 'credential',
@@ -164,6 +174,7 @@ export const CATEGORY_ORDER: ReadonlyArray<PIICategory> = [
   'landline',
   'email',
   'address',
+  'postal_code',
   'card',
   'account',
   'business_number',

@@ -95,6 +95,9 @@ function maskShape(text: string, category: PIICategory): string {
     case 'passport':
       // 첫 글자 보존 + 나머지 X
       return text[0] + 'X'.repeat(Math.max(0, text.length - 1));
+    case 'postal_code':
+      // 5자리 모두 마스킹 — 시·구 식별 위험 차단.
+      return text.replace(/\d/g, 'X');
     case 'person_name':
     case 'organization':
     case 'address':
@@ -127,6 +130,7 @@ const TAG_BY_CATEGORY: Record<PIICategory, string> = {
   email: '[이메일]',
   person_name: '[이름]',
   address: '[주소]',
+  postal_code: '[우편번호]',
   organization: '[조직명]',
   url: '[URL]',
   date: '[날짜]',
@@ -150,6 +154,7 @@ const FAKE_BY_CATEGORY: Record<PIICategory, string> = {
   corporate_registration: '000000-0000000',
   person_name: '홍길동',
   address: '부산광역시 ○○구 ○○동',
+  postal_code: '00000',
   organization: '○○단체',
   url: 'https://example.com',
   date: '0000-00-00',
@@ -174,6 +179,7 @@ const SAMPLE_BY_CATEGORY: Record<PIICategory, string> = {
   person_name: '홍길동',
   email: 'minsu@example.com',
   address: '서울특별시 강남구',
+  postal_code: '06024',
   url: 'https://example.com',
   date: '1985-03-12',
   credential: 'sk-abc1234567890',
@@ -255,7 +261,11 @@ export interface MaskResult {
   skipped: PIISpan[];
 }
 
-function spanKey(span: PIISpan): string {
+/**
+ * Span 단위 ON/OFF 토글에 사용할 안정 키.
+ * 위치(start/end)와 카테고리로 고유. 같은 paste 컨텍스트 안에서만 의미.
+ */
+export function spanKey(span: PIISpan): string {
   return `${span.start}:${span.end}:${span.category}`;
 }
 
