@@ -13,11 +13,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/dialog';
-import { Separator } from '@/shared/ui/separator';
 import { CATEGORIES, CATEGORY_ORDER } from '@/background/pii/categories';
 import { spanKey } from '@/background/pii/mask';
-import { defaultSettings, loadSettings, type Settings } from '@/shared/settings';
-import type { PIICategory, PIISpan } from '@/shared/types';
+import {
+  defaultSettings,
+  loadSettings,
+  saveSettings,
+  type Settings,
+} from '@/shared/settings';
+import type { MaskMode, PIICategory, PIISpan } from '@/shared/types';
 import type { QueueItem } from './file-queue';
 import { fileExtension } from './file-queue';
 import { formatSegmentLabel } from './parsers/segment-label';
@@ -27,7 +31,11 @@ export interface FileReviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: QueueItem | null;
-  onConfirm: (id: string, enabledSpanKeys: Set<string>) => void;
+  onConfirm: (
+    id: string,
+    enabledSpanKeys: Set<string>,
+    modeByCategory: Partial<Record<PIICategory, MaskMode>>,
+  ) => void;
 }
 
 interface SegmentGroup {
@@ -47,10 +55,18 @@ export function FileReviewDialog({
 }: FileReviewDialogProps) {
   const [settings, setSettings] = useState<Settings>(defaultSettings);
   const [enabledSpanKeys, setEnabledSpanKeys] = useState<Set<string>>(new Set());
+  // 카테고리별 마스킹 모드 — 저장된 settings에서 초기화하고, 사용자가 picker로 변경.
+  // PasteModal과 동일 패턴: confirm 시 settings에 저장 + export 파이프라인에 override 전달.
+  const [modeByCategory, setModeByCategory] = useState<
+    Partial<Record<PIICategory, MaskMode>>
+  >({});
 
   useEffect(() => {
     if (!open) return;
-    void loadSettings().then(setSettings);
+    void loadSettings().then((s) => {
+      setSettings(s);
+      setModeByCategory(s.modeByCategory);
+    });
     if (item?.enabledSpanKeys) {
       setEnabledSpanKeys(new Set(item.enabledSpanKeys));
     } else {
@@ -126,9 +142,15 @@ export function FileReviewDialog({
     }
   };
 
+  const setCategoryMode = (category: PIICategory, mode: MaskMode) => {
+    setModeByCategory((prev) => ({ ...prev, [category]: mode }));
+  };
+
   const handleConfirm = () => {
     if (!item) return;
-    onConfirm(item.id, new Set(enabledSpanKeys));
+    // 선택한 모드를 저장(다음 파일·붙여넣기 기본값으로 재사용) + onConfirm으로 export에 전달.
+    void saveSettings({ ...settings, modeByCategory });
+    onConfirm(item.id, new Set(enabledSpanKeys), modeByCategory);
   };
 
   if (!item) return null;
@@ -140,9 +162,9 @@ export function FileReviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" aria-hidden />
-            <span className="truncate">{item.file.name}</span>
+          <DialogTitle className="flex items-start gap-2">
+            <Shield className="mt-0.5 h-5 w-5 shrink-0 text-primary" aria-hidden />
+            <span className="min-w-0 break-words">{item.file.name}</span>
           </DialogTitle>
           <DialogDescription className="flex items-center gap-2 text-xs">
             <FileText className="h-3.5 w-3.5" aria-hidden />
@@ -156,23 +178,25 @@ export function FileReviewDialog({
         </DialogHeader>
 
         {/* 카테고리별 일괄 토글 + 전체 토글 */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setAllEnabled(true)}
-            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-          >
-            전체 켜기
-          </button>
-          <span className="text-xs text-muted-foreground">/</span>
-          <button
-            type="button"
-            onClick={() => setAllEnabled(false)}
-            className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
-          >
-            전체 끄기
-          </button>
-          <Separator orientation="vertical" className="mx-1 h-4" />
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setAllEnabled(true)}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              전체 켜기
+            </button>
+            <span className="text-xs text-muted-foreground">/</span>
+            <button
+              type="button"
+              onClick={() => setAllEnabled(false)}
+              className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
+            >
+              전체 끄기
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5">
           {CATEGORY_ORDER.filter((c) => countsByCategory.has(c)).map((c) => {
             const def = CATEGORIES[c];
             const counts = countsByCategory.get(c)!;
@@ -190,6 +214,7 @@ export function FileReviewDialog({
               </Badge>
             );
           })}
+          </div>
         </div>
 
         {/* 항목 리스트 */}
@@ -198,8 +223,9 @@ export function FileReviewDialog({
             <SpanReviewList
               spans={allSpans}
               enabledSpanKeys={enabledSpanKeys}
-              modeByCategory={settings.modeByCategory}
+              modeByCategory={modeByCategory}
               onToggle={setSpanEnabled}
+              onModeChange={setCategoryMode}
             />
           ) : (
             <ul className="space-y-3">
@@ -216,8 +242,9 @@ export function FileReviewDialog({
                       <SpanReviewList
                         spans={g.spans}
                         enabledSpanKeys={enabledSpanKeys}
-                        modeByCategory={settings.modeByCategory}
+                        modeByCategory={modeByCategory}
                         onToggle={setSpanEnabled}
+                        onModeChange={setCategoryMode}
                       />
                     </div>
                   </details>

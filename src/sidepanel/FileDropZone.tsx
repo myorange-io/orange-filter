@@ -66,7 +66,7 @@ export function FileDropZone({ onAdd, onReject, className }: FileDropZoneProps) 
           </span>
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          {SUPPORTED_EXTENSIONS.map((e) => e.replace('.', '').toUpperCase()).join(' · ')}
+          HWP · HWPX · DOCX · XLSX · PPTX · CSV · TXT · PDF · PNG · JPG · WEBP
         </p>
       </button>
       <input

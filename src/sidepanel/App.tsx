@@ -286,8 +286,8 @@ export function App() {
             />
             <span>AI 보호 켜짐</span>
           </div>
-          <p>모든 처리는 이 PC 안에서 이뤄집니다.</p>
           <p>
+            모든 처리는 이 PC 안에서 이뤄집니다.{' '}
             <a
               href="https://github.com/myorange-io/orange-filter/blob/main/docs/PRIVACY_POLICY.md"
               target="_blank"
@@ -302,7 +302,7 @@ export function App() {
             target="_blank"
             rel="noopener noreferrer"
             aria-label="마이오렌지"
-            className="mt-3 inline-block opacity-60 transition-opacity hover:opacity-100"
+            className="mt-5 inline-block opacity-60 transition-opacity hover:opacity-100"
           >
             <img
               src={
@@ -322,10 +322,10 @@ export function App() {
           if (!o) setReviewItemId(null);
         }}
         item={reviewItem}
-        onConfirm={(id, keys) => {
+        onConfirm={(id, keys, modeByCategory) => {
           queue.setItemEnabledSpanKeys(id, keys);
           setReviewItemId(null);
-          void queue.confirmReview(id);
+          void queue.confirmReview(id, modeByCategory);
         }}
       />
       <Toaster />

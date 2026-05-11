@@ -13,7 +13,7 @@ import { maskText, spanKey } from '@/background/pii/mask';
 import { detectContextualName } from '@/background/pii/regex';
 import { findInlineLabels } from '@/background/pii/header-hints';
 import { requestDetect } from '@/shared/lib/detect-client';
-import type { PIISpan } from '@/shared/types';
+import type { MaskMode, PIICategory, PIISpan } from '@/shared/types';
 
 export interface MaskSegmentsResult {
   maskedMap: Map<string, string>;
@@ -90,11 +90,13 @@ export async function detectSegments(
  * 모델 호출 없는 순수 함수 — 토글 변경마다 호출해도 안전.
  *
  * enabledSpanKeys === undefined: 모든 span 적용 (기존 동작).
+ * modeByCategory: 카테고리별 마스킹 모드 override (검토 모달의 picker 결과).
  */
 export function maskSegmentsWithSpans(
   segments: ReadonlyArray<Segment>,
   spansBySegment: ReadonlyMap<string, ReadonlyArray<PIISpan>>,
   enabledSpanKeys?: ReadonlySet<string>,
+  modeByCategory?: Partial<Record<PIICategory, MaskMode>>,
 ): MaskSegmentsResult {
   const out = new Map<string, string>();
   let total = 0;
@@ -104,7 +106,7 @@ export function maskSegmentsWithSpans(
       out.set(seg.id, seg.text);
       continue;
     }
-    const result = maskText(seg.text, spans, { enabledSpanKeys });
+    const result = maskText(seg.text, spans, { enabledSpanKeys, modeByCategory });
     out.set(seg.id, result.text);
     total += result.applied.length;
   }
