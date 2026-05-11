@@ -39,6 +39,8 @@ declare -a ALLOW=(
   '하나 100-20-30405'     # detector docstring 3-2-5-1 example
   # Demo fixture (sidepanel "예시 파일로 시험해보기")
   '신한 110-123-456789'
+  # README Before/After 표 예시 (allowlist는 substring match — 정규식이 추출하는 부분과 일치시킴)
+  '국민 031-88-8888'
 )
 
 found=0
