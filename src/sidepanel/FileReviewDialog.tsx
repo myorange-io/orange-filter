@@ -13,7 +13,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/shared/ui/dialog';
-import { HoldButton } from '@/shared/ui/HoldButton';
 import { Separator } from '@/shared/ui/separator';
 import { CATEGORIES, CATEGORY_ORDER } from '@/background/pii/categories';
 import { spanKey } from '@/background/pii/mask';
@@ -29,8 +28,6 @@ export interface FileReviewDialogProps {
   onOpenChange: (open: boolean) => void;
   item: QueueItem | null;
   onConfirm: (id: string, enabledSpanKeys: Set<string>) => void;
-  /** 1.5초 hold "원본 그대로" — 모든 토글 OFF로 confirm */
-  onCancel?: () => void;
 }
 
 interface SegmentGroup {
@@ -134,11 +131,6 @@ export function FileReviewDialog({
     onConfirm(item.id, new Set(enabledSpanKeys));
   };
 
-  const handleHoldOverride = () => {
-    if (!item) return;
-    onConfirm(item.id, new Set());
-  };
-
   if (!item) return null;
 
   const allOff = totalApplied === 0 && totalFound > 0;
@@ -240,32 +232,27 @@ export function FileReviewDialog({
           )}
         </div>
 
-        <DialogFooter className="flex-wrap gap-2 sm:gap-2 sm:flex-nowrap">
-          <HoldButton onConfirm={handleHoldOverride} className="text-xs">
-            꾹 누르면 원본 그대로 저장
-          </HoldButton>
-          <div className="flex flex-1 justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              aria-label="검토 취소"
-            >
-              취소
-            </Button>
-            <Button
-              onClick={handleConfirm}
-              variant={allOff ? 'destructive' : 'default'}
-              aria-label={
-                allOff
-                  ? '모두 끔 — 원본 그대로 저장'
-                  : `${totalApplied}건 가리고 다운로드`
-              }
-            >
-              {allOff
-                ? '원본 그대로 저장'
-                : `${totalApplied}건 가리고 다운로드`}
-            </Button>
-          </div>
+        <DialogFooter className="gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            aria-label="검토 취소"
+          >
+            취소
+          </Button>
+          <Button
+            onClick={handleConfirm}
+            variant={allOff ? 'destructive' : 'default'}
+            aria-label={
+              allOff
+                ? '모두 끔 — 원본 그대로 저장'
+                : `${totalApplied}건 가리고 다운로드`
+            }
+          >
+            {allOff
+              ? '원본 그대로 저장'
+              : `${totalApplied}건 가리고 다운로드`}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

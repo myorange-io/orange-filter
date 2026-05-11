@@ -73,19 +73,19 @@ export function FileQueueList({ items, onRemove, onReview }: FileQueueListProps)
                 검토
               </Button>
             )}
-            <Badge
-              variant={
-                item.status === 'error'
-                  ? 'destructive'
-                  : item.status === 'done'
-                    ? 'accent'
-                    : item.status === 'reviewing'
+            {item.status !== 'reviewing' && (
+              <Badge
+                variant={
+                  item.status === 'error'
+                    ? 'destructive'
+                    : item.status === 'done'
                       ? 'accent'
                       : 'outline'
-              }
-            >
-              {STATUS_LABEL[item.status]}
-            </Badge>
+                }
+              >
+                {STATUS_LABEL[item.status]}
+              </Badge>
+            )}
             <button
               type="button"
               onClick={() => onRemove(item.id)}

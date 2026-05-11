@@ -11,6 +11,24 @@
 import type { PIISpan } from '@/shared/types';
 
 /**
+ * 한국어 학문 분야·일반어 stoplist — AEGIS NER이 SURNAME+GIVENNAME으로 잘못 라벨링하는 단어.
+ *
+ * 동기 (HWPX 강연자 서류 케이스): NER이 "심리학"을 SURNAME(심)+GIVENNAME(리학)로 분리 라벨링하면
+ * `mergeAdjacentNames`가 한 person_name 스팬으로 머지해 마스킹 대상이 된다. 학과·전공·학문
+ * 분야명은 사적 식별 정보가 아니므로 후처리에서 차단한다.
+ */
+const KOREAN_NAME_FP_STOPLIST: ReadonlySet<string> = new Set([
+  // 학문 분야
+  '심리학', '사회학', '경제학', '경영학', '행정학', '회계학', '통계학',
+  '철학', '문학', '수학', '과학', '미학', '신학', '의학', '약학',
+  '인문학', '윤리학', '정치학', '교육학', '논리학', '언어학',
+  '물리학', '화학', '생물학', '지리학', '지질학', '천문학',
+  '국문학', '영문학', '간호학', '인류학', '고고학', '해양학', '환경학',
+  // 학과·전공 접미사가 붙는 보편 명사 (NER이 surname 시작으로 잘못 보는 케이스)
+  '심리', '윤리', '논리', '진리', '도리',
+]);
+
+/**
  * 영문 stopword 블랙리스트 — NER이 PERSON으로 자주 잘못 분류하는 짧은 토큰.
  * 영문 한국식 이름 'Lee'/'Kim' 등은 ROMAN_KOREAN_SURNAMES와 겹치지 않게 의도적 제외.
  */
@@ -45,6 +63,7 @@ function isShortAsciiToken(text: string): boolean {
  * 필터 규칙:
  *   1. 영문 stopword 블랙리스트(대소문자 무관) → drop
  *   2. ASCII 알파벳만 + 길이 ≤ 3 + confidence < 0.85 → drop (예: 'do', 'is')
+ *   3. 한국어 학문 분야·일반어 stoplist (심리학·경제학·…) → drop
  *
  * person_name 외 카테고리는 통과. 정규식 결과는 호출자가 별도 처리.
  */
@@ -58,6 +77,7 @@ export function filterNerFalsePositives(spans: ReadonlyArray<PIISpan>): PIISpan[
     const t = s.text.trim();
     if (ENGLISH_STOPWORDS.has(t.toLowerCase())) continue;
     if (isShortAsciiToken(t) && s.confidence < SHORT_ASCII_CONFIDENCE_THRESHOLD) continue;
+    if (KOREAN_NAME_FP_STOPLIST.has(t)) continue;
     out.push(s);
   }
   return out;
