@@ -13,6 +13,7 @@ import {
 import { exportFile, parseFile } from './parsers';
 import { detectSegments, maskSegmentsWithSpans, spanKey } from './mask-segments';
 import { loadSettings, subscribeSettings, type Settings } from '@/shared/settings';
+import type { MaskMode, PIICategory } from '@/shared/types';
 
 export interface UseFileQueueResult {
   items: QueueItem[];
@@ -21,8 +22,11 @@ export interface UseFileQueueResult {
   clear: () => void;
   /** 검토 단계에서 사용자 토글 갱신 (모달이 호출) */
   setItemEnabledSpanKeys: (id: string, keys: Set<string>) => void;
-  /** 검토 confirm — 토글 반영해 mask·export·다운로드 */
-  confirmReview: (id: string) => Promise<void>;
+  /** 검토 confirm — 토글·카테고리 모드 반영해 mask·export·다운로드 */
+  confirmReview: (
+    id: string,
+    modeByCategory?: Partial<Record<PIICategory, MaskMode>>,
+  ) => Promise<void>;
 }
 
 function suffixedName(original: string, suffix = '_masked', overrideExt?: string): string {
@@ -128,12 +132,15 @@ export function useFileQueue(): UseFileQueueResult {
       enabledSpanKeys: Set<string>,
       file: File,
       detectedCount: number,
+      modeByCategory?: Partial<Record<PIICategory, MaskMode>>,
     ): Promise<void> => {
       update(id, { status: 'masking', progress: 85 });
+      const effectiveMode = modeByCategory ?? settingsRef.current?.modeByCategory;
       const { maskedMap, totalSpans: appliedCount } = maskSegmentsWithSpans(
         parsed.segments,
         spansBySegment,
         enabledSpanKeys,
+        effectiveMode,
       );
       const blob = await exportFile(file, maskedMap);
       update(id, { progress: 95 });
@@ -189,7 +196,10 @@ export function useFileQueue(): UseFileQueueResult {
   );
 
   const confirmReview = useCallback(
-    async (id: string): Promise<void> => {
+    async (
+      id: string,
+      modeByCategory?: Partial<Record<PIICategory, MaskMode>>,
+    ): Promise<void> => {
       const item = itemsRef.current.find((it) => it.id === id);
       if (!item || !item.parsed || !item.spansBySegment) return;
       const keys = item.enabledSpanKeys ?? new Set<string>();
@@ -201,6 +211,7 @@ export function useFileQueue(): UseFileQueueResult {
           keys,
           item.file,
           item.detectedCount ?? 0,
+          modeByCategory,
         );
       } catch (err) {
         update(id, {
