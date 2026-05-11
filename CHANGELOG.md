@@ -5,6 +5,68 @@
 
 ---
 
+## [1.4.0] — 2026-05-11
+
+마스킹 투명성 강화(3-pane 붙여넣기 모달, 파일 검토 모달, 카테고리별 모드 picker)
++ 게이트 재노출 회귀 픽스 + 한국어 학문 분야 NAME 오탐 차단 + 비영리 실무자 중심
+README 재작성. PR #27 ~ #30 통합 릴리즈.
+
+### Added
+
+- **붙여넣기 모달 3-pane 리디자인** — 원본 하이라이트(클릭 시 active span 변경) /
+  카테고리별 토글 + 마스킹 모드 picker / 자유 편집 textarea. 모달 안에서 카테고리·
+  모드·개별 span ON/OFF를 모두 즉석에서 바꿀 수 있다.
+- **파일 검토 모달** — detect와 mask·export를 분리해 다운로드 직전 사용자가 어떤
+  항목이 가려질지 직접 검토. 카테고리 일괄 토글 + 항목 단위 토글 + 카테고리별
+  마스킹 모드 picker(PasteModal과 동일 패턴) 지원. `settings.modeByCategory`에
+  저장되어 다음 파일·붙여넣기 기본값으로 재사용.
+- **한국 양식 PII 강화** — `detectGeneralName`(NAME_BARE/ROMAN_NAME) 활성, postal_code
+  카테고리 신설, `detectDate`/`detectAddress` 강화.
+- **NER false positive 필터** — `do`·`is` 같은 짧은 ASCII person_name 차단
+  (`filterNerFalsePositives`).
+- **한국어 학문 분야 NAME 오탐 차단** — AEGIS NER이 SURNAME+GIVENNAME으로 잘못
+  라벨링하던 "심리학"·"경제학"·"교육학" 등 30+ 학문 분야 stoplist
+  (`KOREAN_NAME_FP_STOPLIST` + `NAME_BARE_STOPLIST` 양쪽 방어).
+- **paste handler NFC 정규화** — macOS clipboard NFD 자모 분해 케이스 호환.
+- **사이드패널 푸터에 마이오렌지 로고** — corp.myorange.io 외부 링크.
+
+### Fixed
+
+- **게이트 화면이 매번 뜨는 회귀 (P0)** — `listCachedModels`가 IndexedDB
+  (`indexedDB.open('transformers-cache')`)를 조회했지만 `env.useBrowserCache = true`는
+  Cache Storage API를 사용. 결과적으로 항상 빈 배열 반환 → 사이드패널 진입 시마다
+  게이트 재표시. `caches.open('transformers-cache')`로 정정.
+- **모델 다운로드 표시 용량** — 50MB → 170MB 실측 정정
+  (`src/shared/models.ts` `approxDownloadMB`).
+- **shadow DOM + Radix Dialog 호환** — Extension context invalidated 메시지 swallow,
+  closed Shadow DOM 안에서 wheel 이벤트 누수 차단(`manualWheelScroll`).
+
+### Changed
+
+- **설정 탭의 '파일 검토' 토글 제거** — 항상 검토를 거치는 단일 동작으로 통일.
+  `settings.autoApplyMaskWithoutReview` 필드는 보존(저장된 설정 호환), UI 토글만 제거.
+- **사이드패널 UX 정리** — 큐 항목의 '검토 대기' 배지 제거(검토 버튼이 상태 신호로
+  충분), '큐 비우기' → '비우기', 검토 모달의 '꾹 누르면 원본 그대로 저장' HoldButton
+  제거(모든 토글 OFF 후 confirm으로 동일 동작 가능).
+- **검토 모달 레이아웃 다듬기** — 긴 파일명 줄바꿈(truncate → break-words),
+  '전체 켜기 / 전체 끄기'와 카테고리 배지 줄 분리.
+- **푸터 정리** — 처리방침 안내를 한 줄로 통합, 로고 위 여백 12px → 20px.
+- **드롭존 지원 확장자 안내** — 사용자 친화 목록 고정
+  (HWP·HWPX·DOCX·XLSX·PPTX·CSV·TXT·PDF·PNG·JPG·WEBP). 실제 허용 확장자 배열
+  (`SUPPORTED_EXTENSIONS`, .xls/.jpeg 포함)은 호환을 위해 그대로 유지.
+- **README 전면 재작성 + 편집 패스** — 비영리 실무자(비개발자) 1순위 독자 기준
+  구조 재배치(Before/After 예시 상단, 설치 CTA를 첫 화면 도달 위치로), 버전 종속
+  표현 제거, 기술 용어(후킹/정규식/MV3 CSP/ONNX Runtime) 비개발자 영역에서 격리,
+  소제목 명사구 통일, 17 카테고리 그리드 → 한 문단, 풋터에 마이오렌지 회사 링크.
+
+### Security
+
+- **사용자 PII를 합성 dummy로 일괄 치환** — 테스트 fixture·mockup·코드 주석 등에
+  실 데이터 잔존을 점검. 정규식 매치 형태(시도+구+로+번지+동호수, YYYY.M.D)는 유지해
+  회귀 테스트 동작 보장.
+
+---
+
 ## [1.3.1] — 2026-04-30
 
 데모 fixture 진입점 제거. 기능 변경 없음.
