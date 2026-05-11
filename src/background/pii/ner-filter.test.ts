@@ -78,4 +78,24 @@ describe('filterNerFalsePositives', () => {
     ]);
     expect(out).toHaveLength(0);
   });
+
+  // 학문 분야 — AEGIS NER이 SURNAME+GIVENNAME으로 잘못 라벨링하는 케이스.
+  // HWPX 강연자 서류에서 "심리학"이 person_name으로 잡혀 마스킹되던 회귀.
+  it('한국어 학문 분야명은 차단 (심리학·경제학 등)', () => {
+    const out = filterNerFalsePositives([
+      span('심리학', 'person_name', 0.7),
+      span('경제학', 'person_name', 0.7),
+      span('교육학', 'person_name', 0.7),
+      span('국문학', 'person_name', 0.7),
+    ]);
+    expect(out).toHaveLength(0);
+  });
+
+  it('실제 한국 이름은 학문 분야 stoplist에 영향받지 않음', () => {
+    const out = filterNerFalsePositives([
+      span('조성도', 'person_name', 0.7),
+      span('김민수', 'person_name', 0.7),
+    ]);
+    expect(out).toHaveLength(2);
+  });
 });

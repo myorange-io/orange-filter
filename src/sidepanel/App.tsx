@@ -24,7 +24,6 @@ import { FileDropZone } from './FileDropZone';
 import { FileQueueList } from './FileQueueList';
 import { FileReviewDialog } from './FileReviewDialog';
 import { GateScreen, useModelCached } from './GateScreen';
-import { Switch } from '@/shared/ui/switch';
 import { useFileQueue } from './use-file-queue';
 
 export function App() {
@@ -85,9 +84,6 @@ export function App() {
       whitelistedDomains: settings.whitelistedDomains.filter((x) => x !== d),
     });
   };
-
-  const setAutoApply = (autoApplyMaskWithoutReview: boolean) =>
-    persist({ ...settings, autoApplyMaskWithoutReview });
 
   // 검토 중 큐 항목이 제거되거나 사라지면 모달 자동 닫음.
   const reviewItem =
@@ -171,7 +167,7 @@ export function App() {
               onClick={queue.clear}
               className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2"
             >
-              큐 비우기
+              비우기
             </button>
           )}
           </div>
@@ -239,21 +235,6 @@ export function App() {
             </section>
 
             <section className="rounded-lg border bg-card p-4">
-              <div className="mb-1 flex items-center justify-between gap-3">
-                <h2 className="text-base font-bold">파일 검토</h2>
-                <Switch
-                  checked={settings.autoApplyMaskWithoutReview}
-                  onCheckedChange={setAutoApply}
-                  aria-label="검토 없이 자동 가리기"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                기본은 파일을 다운로드하기 전에 어떤 항목이 가려질지 검토할 수 있어요.
-                위 스위치를 켜면 검토 없이 즉시 가리고 자동 다운로드합니다.
-              </p>
-            </section>
-
-            <section className="rounded-lg border bg-card p-4">
               <h2 className="mb-1 text-base font-bold">허용 사이트</h2>
               <p className="mb-3 text-xs text-muted-foreground">
                 여기에 등록한 사이트에서는 붙여넣기 알림이 뜨지 않아요.
@@ -297,7 +278,7 @@ export function App() {
           </TabsContent>
         </Tabs>
 
-        <footer className="mt-6 space-y-1 text-xs text-muted-foreground">
+        <footer className="mt-6 space-y-2 text-xs text-muted-foreground">
           <div className="flex items-center gap-1.5">
             <span
               className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-600"
@@ -316,6 +297,23 @@ export function App() {
               개인정보 처리방침
             </a>
           </p>
+          <a
+            href="https://corp.myorange.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="마이오렌지"
+            className="mt-3 inline-block opacity-60 transition-opacity hover:opacity-100"
+          >
+            <img
+              src={
+                typeof chrome !== 'undefined' && chrome.runtime?.getURL
+                  ? chrome.runtime.getURL('myorange.svg')
+                  : '/myorange.svg'
+              }
+              alt="마이오렌지"
+              className="h-4 w-auto"
+            />
+          </a>
         </footer>
       </main>
       <FileReviewDialog

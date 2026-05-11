@@ -170,46 +170,33 @@ export function cancelDownload(modelId: string): boolean {
 }
 
 /**
- * 캐시된 모델 ID 목록 — IndexedDB의 transformers.js 캐시를 enumerate.
- * Transformers.js는 'transformers-cache' DB에 저장. 정확한 enumerate는 IDB API 직접 사용.
+ * 캐시된 모델 ID 목록 — Cache Storage(`transformers-cache`)에 저장된 HF URL을 enumerate.
+ *
+ * 주의: `env.useBrowserCache = true`는 Cache Storage API(`caches.open`)를 사용한다
+ * (IndexedDB가 아님). 이전에는 `indexedDB.open('transformers-cache')`로 잘못 조회해
+ * 항상 빈 배열을 반환했고, 그 결과 사이드패널 진입 시마다 게이트 화면이 다시 떴다.
  */
 export async function listCachedModels(): Promise<string[]> {
-  if (typeof indexedDB === 'undefined') return [];
-  return new Promise<string[]>((resolve) => {
-    const req = indexedDB.open('transformers-cache');
-    req.onsuccess = () => {
-      const db = req.result;
+  if (typeof caches === 'undefined') return [];
+  try {
+    if (!(await caches.has('transformers-cache'))) return [];
+    const cache = await caches.open('transformers-cache');
+    const requests = await cache.keys();
+    const modelIds = new Set<string>();
+    for (const req of requests) {
       try {
-        if (!db.objectStoreNames.contains('files')) {
-          db.close();
-          resolve([]);
-          return;
-        }
-        const tx = db.transaction('files', 'readonly');
-        const store = tx.objectStore('files');
-        const keysReq = store.getAllKeys();
-        keysReq.onsuccess = () => {
-          const keys = (keysReq.result as IDBValidKey[]).map(String);
-          // 키는 보통 모델 ID로 시작 — 첫 두 path segment 추출
-          const modelIds = new Set<string>();
-          for (const k of keys) {
-            const parts = k.split('/');
-            if (parts.length >= 2) modelIds.add(`${parts[0]}/${parts[1]}`);
-          }
-          db.close();
-          resolve([...modelIds]);
-        };
-        keysReq.onerror = () => {
-          db.close();
-          resolve([]);
-        };
+        const path = new URL(req.url).pathname;
+        // HF 캐시 URL 형태: /{owner}/{name}/resolve/{rev}/{file}
+        const parts = path.split('/').filter(Boolean);
+        if (parts.length >= 2) modelIds.add(`${parts[0]}/${parts[1]}`);
       } catch {
-        db.close();
-        resolve([]);
+        /* URL parse 실패 — skip */
       }
-    };
-    req.onerror = () => resolve([]);
-  });
+    }
+    return [...modelIds];
+  } catch {
+    return [];
+  }
 }
 
 // 모델 NER 라벨 → PIICategory 매핑.
