@@ -176,7 +176,7 @@ const KR_PROVINCE_PATTERN = KR_PROVINCES.join('|');
 // 시도 + (선택적) 시·군·구 + 동/로/길 + 번지/동호수까지. lookahead로 끝 boundary.
 // 짧은 false positive(예: '서울 본부') 차단을 위해 도로명/동명/번지 중 1+ 토큰을 요구.
 //
-// 마지막 상세 부분: `5, 5-678` 같은 "번지 + 동호수" 형식까지 잡으려면 클래스에 공백·콤마
+// 마지막 상세 부분: `12, 5-678` 같은 "번지 + 동호수" 형식까지 잡으려면 클래스에 공백·콤마
 // 포함. 다음 줄로 새지 않게 줄바꿈은 제외 (\n/\r 제외, [ \t]만).
 const ADDRESS_PATTERN = new RegExp(
   `(?:${KR_PROVINCE_PATTERN})` +

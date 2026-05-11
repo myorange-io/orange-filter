@@ -639,7 +639,7 @@ describe('detectAddress — 한국 주소', () => {
     expect(addr?.text).toContain('서울 강남구');
   });
 
-  it('번지 + 동호수까지 매칭 (5, 5-678)', () => {
+  it('번지 + 동호수까지 매칭 (12, 5-678)', () => {
     const spans = detectKoreanPII('서울 강남구 테헤란로 12, 5-678');
     const addr = spans.find((s) => s.category === 'address');
     expect(addr?.text).toBe('서울 강남구 테헤란로 12, 5-678');
