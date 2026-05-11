@@ -37,8 +37,11 @@ const HEADER_KEYWORDS: Record<PIICategory, ReadonlyArray<string>> = {
     'account', 'accountnumber', 'bankaccount',
   ],
   address: [
-    '주소', '거주지', '거주지주소', '자택주소', '회사주소', '집주소',
+    '주소', '거주지', '거주지주소', '자택주소', '회사주소', '집주소', '현주소',
     'address', 'addr',
+  ],
+  postal_code: [
+    '우편번호', '우편', 'zip', 'zipcode', 'postalcode', 'postcode',
   ],
   rrn: [
     '주민번호', '주민등록번호', 'rrn', 'residentregistrationnumber',

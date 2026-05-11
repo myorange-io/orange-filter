@@ -1,19 +1,37 @@
 // 파일 큐 모델 — sidepanel에서 드롭된 파일들의 lifecycle을 추적.
 // S12에서 parsers/{pdf,docx,xlsx,csv,txt,hwp,hwpx} 어댑터가 채울 자리.
+// v1.4: 'reviewing'/'masking' 상태 추가 — detect 후 사용자 검토 → confirm 시 mask·export.
 
-export type FileStatus = 'queued' | 'extracting' | 'detecting' | 'done' | 'error';
+import type { ParseResult } from './parsers/types';
+import type { PIISpan } from '@/shared/types';
+
+export type FileStatus =
+  | 'queued'
+  | 'extracting'
+  | 'detecting'
+  | 'reviewing'
+  | 'masking'
+  | 'done'
+  | 'error';
 
 export interface QueueItem {
   id: string;
   file: File;
   status: FileStatus;
-  /** 0-100, 단계별 누적 (extract 0-50, detect 50-100) */
+  /** 0-100, 단계별 누적 (extract 0-35, detect 35-80, mask/export 80-100) */
   progress: number;
   errorMessage?: string;
   /** 추출 결과 텍스트 (S12에서 채움) */
   extractedText?: string;
-  /** 발견된 PII span 수 (S12+에서 채움) */
+  /** 발견된 PII span 수 (검토 단계 시 사용 + 완료 시 적용 건수와 별도) */
   detectedCount?: number;
+  /** 사용자가 실제로 적용한 마스킹 건수 (done 상태에서만 의미). detectedCount와 다를 수 있음 */
+  appliedCount?: number;
+  /** detect 결과 보관 — 검토 모달에서 사용. 'reviewing' 상태에서 채워짐. */
+  parsed?: ParseResult;
+  spansBySegment?: Map<string, PIISpan[]>;
+  /** 사용자 토글 상태 — undefined면 '모든 span ON' 으로 간주 */
+  enabledSpanKeys?: Set<string>;
 }
 
 export const SUPPORTED_EXTENSIONS = [

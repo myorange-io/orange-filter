@@ -174,7 +174,7 @@ function WelcomePane({ onStart }: { onStart: () => void }) {
         className="mb-3 h-12 w-full text-[15px] font-semibold"
       >
         <Download className="mr-1 h-4 w-4" />
-        AI 모델 설치하기 (약 50 MB)
+        AI 모델 설치하기 (약 {TIER1_DEFAULT.approxDownloadMB} MB)
       </Button>
     </div>
   );

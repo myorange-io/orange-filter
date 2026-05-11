@@ -1,37 +1,34 @@
 // 파일 큐 처리 파이프라인.
 // S12: parsers/* + background DETECT_REQUEST + mask + exporters/* 통합.
 // S13에서 HWP/HWPX 추가, S14에서 카테고리 토글 연동.
+// v1.4: detect와 mask·export를 분리. settings.autoApplyMaskWithoutReview === false면
+// detect 후 'reviewing' 상태로 정지, confirmReview() 호출 시 mask·export 진행.
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   partitionBySize,
-  formatMB,
-  MAX_FILE_SIZE_BYTES,
-  MAX_QUEUE_TOTAL_BYTES,
   type QueueItem,
   type SizeRejectReason,
 } from './file-queue';
 import { exportFile, parseFile } from './parsers';
-import { maskSegments } from './mask-segments';
+import { detectSegments, maskSegmentsWithSpans, spanKey } from './mask-segments';
+import { loadSettings, subscribeSettings, type Settings } from '@/shared/settings';
 
 export interface UseFileQueueResult {
   items: QueueItem[];
   add: (files: File[]) => { rejected: SizeRejectReason[] };
   remove: (id: string) => void;
   clear: () => void;
-}
-
-interface ProcessOutcome {
-  detectedCount: number;
-  outputBlob: Blob;
-  outputName: string;
+  /** 검토 단계에서 사용자 토글 갱신 (모달이 호출) */
+  setItemEnabledSpanKeys: (id: string, keys: Set<string>) => void;
+  /** 검토 confirm — 토글 반영해 mask·export·다운로드 */
+  confirmReview: (id: string) => Promise<void>;
 }
 
 function suffixedName(original: string, suffix = '_masked', overrideExt?: string): string {
   const idx = original.lastIndexOf('.');
   if (idx < 0) return `${original}${suffix}${overrideExt ?? ''}`;
   const base = original.slice(0, idx);
-  // 원본 확장자 그대로 (대소문자 포함) — exporter가 동일 형식으로 출력.
   const ext = overrideExt ?? original.slice(idx);
   return `${base}${suffix}${ext}`;
 }
@@ -48,56 +45,116 @@ function shouldFallbackToTxt(file: File): boolean {
   );
 }
 
-async function processItem(
-  item: QueueItem,
-  update: (id: string, patch: Partial<QueueItem>) => void,
-): Promise<ProcessOutcome> {
-  // 1) 추출
-  update(item.id, { status: 'extracting', progress: 5 });
-  const parsed = await parseFile(item.file);
-  update(item.id, { progress: 35 });
-
-  // 2) 검사 + 마스킹
-  // v1.2: maskSegments가 background DETECT_REQUEST로 라우팅하여 정규식 + NER 합산.
-  // 진행률은 segment-level onProgress로 50→80% 사이에 보간.
-  update(item.id, { status: 'detecting', progress: 50 });
-  const { maskedMap, totalSpans } = await maskSegments(parsed.segments, {
-    onProgress: (done, total) => {
-      const pct = total === 0 ? 80 : 50 + Math.round((done / total) * 30);
-      update(item.id, { progress: pct });
-    },
-  });
-  update(item.id, { progress: 80 });
-
-  // 3) 익스포트
-  const blob = await exportFile(item.file, maskedMap);
-  update(item.id, { progress: 95 });
-
-  return {
-    detectedCount: totalSpans,
-    outputBlob: blob,
-    outputName: shouldFallbackToTxt(item.file)
-      ? suffixedName(item.file.name, '_masked', '.txt')
-      : suffixedName(item.file.name),
-  };
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 
 export function useFileQueue(): UseFileQueueResult {
   const [items, setItems] = useState<QueueItem[]>([]);
-  // 최신 items 스냅샷 — add 내부에서 currentTotal 계산할 때 closure 회피
   const itemsRef = useRef<QueueItem[]>([]);
   itemsRef.current = items;
+  const settingsRef = useRef<Settings | null>(null);
+
+  useEffect(() => {
+    void loadSettings().then((s) => {
+      settingsRef.current = s;
+    });
+    return subscribeSettings((s) => {
+      settingsRef.current = s;
+    });
+  }, []);
 
   const update = useCallback((id: string, patch: Partial<QueueItem>) => {
     setItems((prev) => prev.map((it) => (it.id === id ? { ...it, ...patch } : it)));
   }, []);
 
+  // detect 단계 — parse + detectSegments. enabledSpanKeys default(모든 ON) 설정.
+  const runDetect = useCallback(
+    async (item: QueueItem): Promise<void> => {
+      update(item.id, { status: 'extracting', progress: 5 });
+      const parsed = await parseFile(item.file);
+      update(item.id, { progress: 35, status: 'detecting' });
+      const { spansBySegment, totalSpans } = await detectSegments(parsed.segments, {
+        onProgress: (done, total) => {
+          const pct = total === 0 ? 80 : 35 + Math.round((done / total) * 45);
+          update(item.id, { progress: pct });
+        },
+      });
+      update(item.id, { progress: 80 });
+      const enabledSpanKeys = new Set<string>();
+      for (const spans of spansBySegment.values()) {
+        for (const s of spans) enabledSpanKeys.add(spanKey(s));
+      }
+      // 0건 또는 자동 적용 모드: 검토 skip 후 즉시 export.
+      const autoApply = settingsRef.current?.autoApplyMaskWithoutReview ?? false;
+      if (totalSpans === 0 || autoApply) {
+        update(item.id, {
+          status: 'masking',
+          progress: 85,
+          parsed,
+          spansBySegment,
+          enabledSpanKeys,
+          detectedCount: totalSpans,
+        });
+        await runExport(item.id, parsed, spansBySegment, enabledSpanKeys, item.file, totalSpans);
+        return;
+      }
+      // 검토 대기 — 사용자 confirm 기다림.
+      update(item.id, {
+        status: 'reviewing',
+        progress: 80,
+        parsed,
+        spansBySegment,
+        enabledSpanKeys,
+        detectedCount: totalSpans,
+      });
+    },
+    [update],
+  );
+
+  // export 단계 — maskSegmentsWithSpans + exportFile + 다운로드.
+  const runExport = useCallback(
+    async (
+      id: string,
+      parsed: NonNullable<QueueItem['parsed']>,
+      spansBySegment: NonNullable<QueueItem['spansBySegment']>,
+      enabledSpanKeys: Set<string>,
+      file: File,
+      detectedCount: number,
+    ): Promise<void> => {
+      update(id, { status: 'masking', progress: 85 });
+      const { maskedMap, totalSpans: appliedCount } = maskSegmentsWithSpans(
+        parsed.segments,
+        spansBySegment,
+        enabledSpanKeys,
+      );
+      const blob = await exportFile(file, maskedMap);
+      update(id, { progress: 95 });
+      const outputName = shouldFallbackToTxt(file)
+        ? suffixedName(file.name, '_masked', '.txt')
+        : suffixedName(file.name);
+      downloadBlob(blob, outputName);
+      update(id, {
+        status: 'done',
+        progress: 100,
+        appliedCount,
+        detectedCount,
+      });
+    },
+    [update],
+  );
+
   const add = useCallback(
     (files: File[]) => {
-      // 크기 상한: 이미 큐에 있는 파일 합계 + 신규 파일 합계 ≤ 500MB, 단일 파일 ≤ 100MB
       const currentTotal = itemsRef.current.reduce((sum, it) => sum + it.file.size, 0);
       const { accepted, rejected } = partitionBySize(files, currentTotal);
-
       const newItems: QueueItem[] = accepted.map((f) => ({
         id: crypto.randomUUID(),
         file: f,
@@ -105,37 +162,17 @@ export function useFileQueue(): UseFileQueueResult {
         progress: 0,
       }));
       if (newItems.length > 0) setItems((prev) => [...prev, ...newItems]);
-
       for (const item of newItems) {
-        processItem(item, update)
-          .then((outcome) => {
-            // 자동 다운로드 (브라우저 파일 저장 다이얼로그)
-            const url = URL.createObjectURL(outcome.outputBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = outcome.outputName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            // revoke은 click 직후 GC 안전한 idle 시점
-            setTimeout(() => URL.revokeObjectURL(url), 5000);
-            update(item.id, {
-              status: 'done',
-              progress: 100,
-              detectedCount: outcome.detectedCount,
-            });
-          })
-          .catch((err: unknown) => {
-            update(item.id, {
-              status: 'error',
-              errorMessage: err instanceof Error ? err.message : String(err),
-            });
+        runDetect(item).catch((err: unknown) => {
+          update(item.id, {
+            status: 'error',
+            errorMessage: err instanceof Error ? err.message : String(err),
           });
+        });
       }
-
       return { rejected };
     },
-    [update],
+    [runDetect, update],
   );
 
   const remove = useCallback((id: string) => {
@@ -144,5 +181,36 @@ export function useFileQueue(): UseFileQueueResult {
 
   const clear = useCallback(() => setItems([]), []);
 
-  return { items, add, remove, clear };
+  const setItemEnabledSpanKeys = useCallback(
+    (id: string, keys: Set<string>) => {
+      update(id, { enabledSpanKeys: keys });
+    },
+    [update],
+  );
+
+  const confirmReview = useCallback(
+    async (id: string): Promise<void> => {
+      const item = itemsRef.current.find((it) => it.id === id);
+      if (!item || !item.parsed || !item.spansBySegment) return;
+      const keys = item.enabledSpanKeys ?? new Set<string>();
+      try {
+        await runExport(
+          id,
+          item.parsed,
+          item.spansBySegment,
+          keys,
+          item.file,
+          item.detectedCount ?? 0,
+        );
+      } catch (err) {
+        update(id, {
+          status: 'error',
+          errorMessage: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
+    [runExport, update],
+  );
+
+  return { items, add, remove, clear, setItemEnabledSpanKeys, confirmReview };
 }
