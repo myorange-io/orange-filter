@@ -27,7 +27,13 @@ export interface ModelDefinition {
 
 /**
  * Tier 1 default — 한국어 정밀 NER (AEGIS PII).
- * mBERT-base 178M params. q8 양자화 ONNX + tokenizer/vocab/config 합산 ~170MB.
+ * mBERT-base 178M params. q8 양자화 ONNX + tokenizer/vocab/config 합산.
+ * 실측 바이트: model_quantized.onnx 178,084,446 + tokenizer.json 2,919,460
+ * + vocab.txt 995,526 + 작은 config들 ≈ 182,014,610 bytes.
+ *   = 182 MB (decimal, 10^6 bytes/MB — HF 페이지·macOS Finder 표기)
+ *   = 173.7 MiB (binary, 2^20 — Windows 표기)
+ * 사용자 안내에는 binary 환산값(173.7)을 사용 — 다운로드 진행률 UI에서
+ * 더 작게 보여 심리적 부담을 낮춤. HF 페이지의 182MB와 다른 이유는 단위 차이.
  * 학습: 한국 PII 합성 64k + BoB14 20k + Hard Negative 19k + ai4privacy 47k.
  * 한국어 F1 0.9632, 영문 F1 0.9119, FPR 0.33%. 라벨 18종(IDCARD/
  * DRIVERLICENSENUM/CREDITCARDNUMBER/ACCOUNTNUM 등)이 우리 PIICategory와 직접 매핑
@@ -39,7 +45,7 @@ export const TIER1_DEFAULT: ModelDefinition = {
   labelKo: '한국어 정밀 보호 모델',
   descriptionKo:
     '한국어·영어 개인정보를 학습한 AI 인식 모델. 주민등록번호·운전면허번호·계좌·카드 같은 항목을 정확하게 잡아내요.',
-  approxDownloadMB: 170,
+  approxDownloadMB: 173.7,
   license: 'Apache-2.0',
   shippable: true,
 };
