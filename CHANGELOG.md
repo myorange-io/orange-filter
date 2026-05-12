@@ -5,6 +5,28 @@
 
 ---
 
+## [1.5.0] — 2026-05-12
+
+첫 설치 환영 탭·푸터 피드백 채널·NPO 양식 person_name FP 53% 감소·릴리즈 인프라 회귀망 4종. PR #32 ~ #36 통합 릴리즈.
+
+### Added
+
+- **첫 설치 환영 탭** — 익스텐션 설치 직후 별도 탭이 자동으로 열려 AI 모델 다운로드를 안내. 사이드패널 GateScreen 도달 전 사용자 동선 분리(`src/welcome/`).
+- **사이드패널 푸터 피드백 링크** — Tally 폼으로 의견 보내기. 사용자가 사이드패널 안에서 직접 피드백 채널 진입 가능.
+- **regex stoplist v1.5 — NPO 양식 일반명사 25개 추가** — 결산공시·기부금명세서에서 person_name으로 오인되던 단어들(지급처·지급하·전입액·장학금·장애인·정규직·계약직·면허증·통장사 외 조사 결합형) 차단. `mergeSpans`가 regex 우선이라 모델 설치 사용자 검토 다이얼로그에도 직접 반영. sample/ 기부금명세서.xls 기준 person_name FP 949건 → 447건 (-53%), 실명 81건 recall은 그대로 보존.
+
+### Fixed
+
+- **모델 다운로드 표시 용량 정정** — 170 MB → 173.7 MB 실측값으로. GateScreen + 모델 카드 양쪽 노출.
+
+### Internal (사용자 비노출)
+
+- **CI 회귀망 4종 추가** — Playwright e2e (사이드패널 smoke + paste shadow host) / NER 정확도 회귀 (`eval-aegis.yml`, F1 ≥ 0.93 + NPO 부정 케이스 16건 FP=0 strict gate, 매일 KST 03:00 cron) / 익스텐션 로드 e2e (`extension-e2e.yml`, production dist를 chromium에 `--load-extension`으로 주입, 매일 KST 04:00 cron) / PasteModal 단위 회귀 (RTL+JSDOM, closed Shadow DOM이 e2e로 못 가는 모달 내부 4 시나리오). vitest 344 passed | 4 skipped.
+- **`?skipGate=1` URL 파라미터** — e2e 회귀용 escape hatch. 검출은 모델 없으면 regex fallback이라 보안 리스크 없음.
+- **AEGIS NER 정확도 baseline** — person_name F1 = 0.9655, NPO 부정 케이스 FP = 0 (16건 strict).
+
+---
+
 ## [1.4.0] — 2026-05-11
 
 마스킹 투명성 강화(3-pane 붙여넣기 모달, 파일 검토 모달, 카테고리별 모드 picker)
