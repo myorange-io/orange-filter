@@ -1,0 +1,61 @@
+name: extension-e2e
+
+# 익스텐션 로드 e2e — production 빌드 dist/를 chromium에 --load-extension 으로 주입.
+# 검증: background SW 활성화 + DETECT_REQUEST 라우팅 (regex + NER 합산 경로의 통합).
+#
+# 트리거:
+#   - 매일 야간 cron (PR마다 돌리지 않음 — chrome extension headed + xvfb 비용 절약)
+#   - 수동 dispatch (디버그용)
+#   - 검출/SW 파일 변경된 PR은 paths 필터로 함께 회귀
+on:
+  pull_request:
+    paths:
+      - 'src/background/**'
+      - 'src/offscreen/**'
+      - 'src/content/**'
+      - 'src/sidepanel/sidepanel.tsx'
+      - 'src/sidepanel/App.tsx'
+      - 'manifest.config.ts'
+      - 'playwright/extension.spec.ts'
+      - '.github/workflows/extension-e2e.yml'
+  schedule:
+    - cron: '0 19 * * *'  # 매일 KST 04:00 (UTC 19:00) — eval-aegis 다음 시간대
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright + Chrome extension load
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build extension (production dist/)
+        # crxjs dev 빌드는 vite dev server에 종속 — extension 로드 e2e는 production 빌드 필요.
+        run: npm run build
+
+      - name: Run extension e2e (xvfb)
+        # headless: false 필요 (chrome extension은 headless 모드 동작 제한) — xvfb 가상 디스플레이.
+        run: xvfb-run --auto-servernum -- npx playwright test playwright/extension.spec.ts --reporter=list
+
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-e2e-trace
+          path: test-results/
+          retention-days: 7

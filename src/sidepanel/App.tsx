@@ -98,7 +98,16 @@ export function App() {
   ).length;
 
   // 게이트 통과 전엔 본문 입력 UI를 렌더링하지 않는다 — 사용자 정의(A 모드).
-  if (modelStatus.checked && !modelStatus.cached && !gatePassed) {
+  // ?skipGate=1: e2e 회귀용 escape hatch. 검출은 모델 없으면 regex fallback이라
+  // 보안 리스크 없음. 진짜 사용자는 chrome.storage 기반 useModelCached로 평가됨.
+  const skipGate =
+    typeof location !== 'undefined' && location.search.includes('skipGate=1');
+  if (
+    modelStatus.checked &&
+    !modelStatus.cached &&
+    !gatePassed &&
+    !skipGate
+  ) {
     return (
       <TooltipProvider>
         <GateScreen onReady={() => setGatePassed(true)} />

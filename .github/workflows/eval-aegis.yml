@@ -1,0 +1,68 @@
+name: eval-aegis
+
+# AEGIS NER 회귀 — person_name 정확도 + NPO 도메인 부정 케이스 FP 차단.
+#
+# Gate (사용자 정의: 옵션 A, 보수):
+#   - perCategory.person_name.F1 >= 0.93   (baseline 0.966, 마진 ~3.5%)
+#   - fpInNegative.length == 0             (NPO 일반명사 16건 FP 0건 strict 유지)
+#
+# 트리거:
+#   - 검출/모델 관련 파일이 바뀐 PR (paths 필터)
+#   - 매일 야간 cron (외부 HF 모델·드라이프트 감지)
+#   - workflow_dispatch (수동 트리거)
+#
+# 모델 캐싱: ~/.cache/huggingface 에 AEGIS PII 모델(~170MB)을 actions/cache로 캐싱.
+# 첫 실행만 다운로드, 그 다음은 캐시 히트로 1분 안에 끝.
+
+on:
+  pull_request:
+    paths:
+      - 'src/background/pii/**'
+      - 'src/offscreen/**'
+      - 'src/shared/models.ts'
+      - 'scripts/eval-aegis/**'
+      - '.github/workflows/eval-aegis.yml'
+  schedule:
+    - cron: '0 18 * * *'  # 매일 KST 03:00 (UTC 18:00)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    name: AEGIS NER eval (person_name F1 + negative FP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Cache Hugging Face models (AEGIS ~170MB)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-aegis-${{ hashFiles('src/shared/models.ts') }}
+          restore-keys: |
+            hf-aegis-
+
+      - name: Run AEGIS eval
+        run: node scripts/eval-aegis/run.mjs
+
+      - name: Enforce gate (person_name F1 >= 0.93, negative FP == 0)
+        run: node scripts/eval-aegis/gate.mjs
+
+      - name: Upload eval report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-aegis-report
+          path: scripts/eval-aegis/report.json
+          retention-days: 30

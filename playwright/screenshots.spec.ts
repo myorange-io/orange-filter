@@ -21,7 +21,9 @@ async function setTheme(page: Page, theme: 'light' | 'dark'): Promise<void> {
   await page.waitForLoadState('networkidle');
 }
 
-test.describe('CWS screenshots', () => {
+// 펭도 정책: CWS product screenshot은 수동 생성. 자동 캡처는 회귀 가치 없어 skip.
+// 사이드패널 인터랙션 회귀는 paste-modal.spec.ts > Sidepanel smoke에서 검증.
+test.describe.skip('CWS screenshots', () => {
   test.use({ viewport: { width: 1280, height: 800 } });
 
   test('01 — 사이드패널 라이트 모드', async ({ page }) => {
@@ -84,7 +86,7 @@ test.describe('CWS screenshots', () => {
   });
 });
 
-test.describe('CWS promo images', () => {
+test.describe.skip('CWS promo images', () => {
   test('promo small 440×280', async ({ page }) => {
     await page.setViewportSize({ width: 440, height: 280 });
     await page.goto('/src/sidepanel/sidepanel.html');

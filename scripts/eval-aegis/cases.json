@@ -268,6 +268,55 @@
     },
 
     {
+      "id": "N09-npo-payment-label",
+      "kind": "negative",
+      "text": "지급처는 기재된 사업자명을 기준으로 검토합니다. 지급일자와 지급사유를 함께 기록해 주세요.",
+      "expected": []
+    },
+    {
+      "id": "N10-npo-id-attachment-label",
+      "kind": "negative",
+      "text": "신분증 사본과 통장 사본을 첨부하시고, 이력서·자기소개서·면허증 사본도 함께 제출해 주세요.",
+      "expected": []
+    },
+    {
+      "id": "N11-npo-employment-status",
+      "kind": "negative",
+      "text": "정규직과 비정규직, 장애인과 비장애인 모두 동등하게 지원 가능합니다.",
+      "expected": []
+    },
+    {
+      "id": "N12-npo-scholarship",
+      "kind": "negative",
+      "text": "장학금 신청서는 전입액 명세서와 함께 제출하며, 학점 기준은 별도 안내합니다.",
+      "expected": []
+    },
+    {
+      "id": "N13-npo-form-fields",
+      "kind": "negative",
+      "text": "성명, 생년월일, 연락처를 정확히 기재해 주세요. 인적사항 미기재 시 반려될 수 있습니다.",
+      "expected": []
+    },
+    {
+      "id": "N14-npo-payment-verb",
+      "kind": "negative",
+      "text": "지급하는 비용은 영수증 첨부가 필수이며, 지급된 금액은 결산서류에 반영됩니다.",
+      "expected": []
+    },
+    {
+      "id": "N15-npo-org-only",
+      "kind": "negative",
+      "text": "동국대학교 산학협력단과 한국문화재단의 협업으로 진행됩니다. (조직명만 — PII 아님)",
+      "expected": []
+    },
+    {
+      "id": "N16-npo-filename-no-name",
+      "kind": "negative",
+      "text": "첨부 파일: 신청서_v2.pdf, 사업계획서_2026.docx, 결산서류_원본.xlsx",
+      "expected": []
+    },
+
+    {
       "id": "M01-name-only-no-particle",
       "kind": "positive",
       "text": "담당: 황준호\n연락: 010-2222-3333",
