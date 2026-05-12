@@ -305,6 +305,15 @@ export function App() {
             >
               개인정보 처리방침
             </a>
+            {' · '}
+            <a
+              href="https://tally.so/r/9qpa1V"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 hover:text-foreground"
+            >
+              의견 보내기
+            </a>
           </p>
           <a
             href="https://corp.myorange.io"
