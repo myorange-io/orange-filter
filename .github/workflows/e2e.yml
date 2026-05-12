@@ -1,0 +1,56 @@
+name: e2e
+
+# Playwright e2e — 사이드패널 smoke + paste 모달 closed Shadow DOM 격리.
+# vite dev 환경 위에서 chromium으로 실행. NER offscreen 경로는 별도(수동/야간 cron).
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Playwright (chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Install playwright chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Start vite dev (background)
+        run: |
+          npm run dev > /tmp/vite.log 2>&1 &
+          # vite ready 대기 — 30초 한도. 첫 build (predev: tesseract setup + icons) 때문에 5~10s 걸림.
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:5173 > /dev/null; then
+              echo "vite ready after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "vite failed to start within 30s"
+          tail -50 /tmp/vite.log
+          exit 1
+
+      - name: Run e2e
+        run: npm run e2e
+
+      - name: Upload trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: test-results/
+          retention-days: 7

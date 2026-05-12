@@ -340,6 +340,45 @@ describe('detectKoreanPII', () => {
     }
   });
 
+  it('v1.5: NPO 양식 일반명사가 person_name으로 안 잡힌다 (지급처/장학금/정규직 등)', () => {
+    // 회귀 근거: sample/ QA에서 기부금명세서·결산공시 양식에 person_name FP 950건+ 발견.
+    // mergeSpans가 regex 우선이라 모델 설치 사용자에게도 직접 영향.
+    const cases = [
+      '지급처는 한국문화재단입니다',
+      '지급된 금액은 결산서류에 반영됩니다',
+      '지급하는 비용은 영수증 첨부가 필수입니다',
+      '전입액 합계와 전출액 합계를 기재하세요',
+      '장학금 신청자는 별도 안내합니다',
+      '장애인 우대 채용 진행 중',
+      '정규직 또는 비정규직 모두 지원 가능',
+      '계약직과 임시직도 대상에 포함',
+      '면허증 사본을 제출해 주세요',
+      '통장사본 첨부가 필요합니다',
+    ];
+    for (const text of cases) {
+      const spans = detectKoreanPII(text);
+      const names = spans.filter((s) => s.category === 'person_name');
+      expect(names, `case "${text}"`).toEqual([]);
+    }
+  });
+
+  it('v1.5: NPO stoplist 확장이 진짜 인명 recall은 깨지 않는다', () => {
+    // 진짜 인명이 stoplist에 끼지 않았는지 sanity check.
+    const cases: Array<[string, string]> = [
+      ['지급처 담당 김민수 부장님', '김민수'],
+      ['장학금 수혜자 박지영', '박지영'],
+      ['통장사본 첨부자 이수정', '이수정'],
+      ['정규직 직원 조성도', '조성도'],
+    ];
+    for (const [text, expectedName] of cases) {
+      const spans = detectKoreanPII(text);
+      const names = spans
+        .filter((s) => s.category === 'person_name')
+        .map((s) => s.text);
+      expect(names, `case "${text}"`).toContain(expectedName);
+    }
+  });
+
   it('detectContextualName: 실제 인명 3자 매칭 (이의헌/김난일/김강석)', () => {
     for (const text of ['이의헌 외 6인', '김난일 비상임', '대표 김강석']) {
       const names = detectContextualName(text).filter((s) => s.category === 'person_name');
