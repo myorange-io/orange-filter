@@ -51,7 +51,7 @@ export function WelcomeApp() {
             <ValueCheck>
               <b className="font-semibold">처음 한 번만</b> 설치하면 됩니다
               <span className="ml-1 text-muted-foreground">
-                (약 {TIER1_DEFAULT.approxDownloadMB} MB)
+                ({TIER1_DEFAULT.approxDownloadMB} MB)
               </span>
             </ValueCheck>
             <ValueCheck>
