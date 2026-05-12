@@ -15,6 +15,7 @@ export default defineConfig({
       input: {
         offscreen: 'src/offscreen/offscreen.html',
         testpage: 'src/test-page/test.html',
+        welcome: 'src/welcome/welcome.html',
       },
     },
   },

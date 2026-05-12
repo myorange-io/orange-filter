@@ -1,0 +1,13 @@
+@import '../shared/design/tokens.css';
+@import '../shared/design/fonts.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Pretendard Variable', 'Pretendard', system-ui, -apple-system, sans-serif;
+  }
+}

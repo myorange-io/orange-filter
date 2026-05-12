@@ -240,7 +240,7 @@ chrome.runtime.onMessage.addListener((message: Message, _sender, sendResponse) =
   }
 });
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   chrome.sidePanel
     .setPanelBehavior({ openPanelOnActionClick: true })
     .catch(() => {
@@ -248,4 +248,11 @@ chrome.runtime.onInstalled.addListener(() => {
     });
   // 설치 직후 offscreen lazy-init (모델 워밍업)
   void ensureOffscreen();
+
+  // 첫 설치에서만 환영 탭 — update / chrome_update / shared_module_update 시엔 열지 않음.
+  if (details.reason === chrome.runtime.OnInstalledReason.INSTALL) {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('src/welcome/welcome.html'),
+    });
+  }
 });
