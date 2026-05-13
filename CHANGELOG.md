@@ -5,6 +5,16 @@
 
 ---
 
+## [1.5.1] — 2026-05-13
+
+크롬 웹스토어 검색 노출 강화를 위한 확장 이름 변경. 기능 변경 없음.
+
+### Changed
+
+- **확장 이름에 부제 추가** — `Orange Filter` → `Orange Filter - AI 프라이버시 필터`. StayFocusd·Grammarly 등 인기 확장의 `브랜드 - 기능 키워드` 패턴 적용. manifest `name`과 `_locales/ko/messages.json`의 `appName` 동기화. `action.default_title`(툴바 호버 툴팁)은 짧게 `Orange Filter` 유지.
+
+---
+
 ## [1.5.0] — 2026-05-12
 
 첫 설치 환영 탭·푸터 피드백 채널·NPO 양식 person_name FP 53% 감소·릴리즈 인프라 회귀망 4종. PR #32 ~ #36 통합 릴리즈.
