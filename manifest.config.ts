@@ -16,7 +16,7 @@ const LLM_HOSTS = [
 
 export default defineManifest({
   manifest_version: 3,
-  name: 'Orange Filter',
+  name: 'Orange Filter - AI 프라이버시 필터',
   description:
     'LLM(ChatGPT·Gemini·Claude·오렌지임팩트)에 붙여넣거나 파일을 올리기 전에, 개인정보를 이 PC 안에서 자동으로 가립니다.',
   version: '1.5.0',
