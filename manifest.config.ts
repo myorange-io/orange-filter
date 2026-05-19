@@ -17,8 +17,9 @@ const LLM_HOSTS = [
 export default defineManifest({
   manifest_version: 3,
   name: '__MSG_appName__',
+  short_name: '__MSG_appShortName__',
   description: '__MSG_appDescription__',
-  version: '1.5.2',
+  version: '1.5.3',
   default_locale: 'ko',
   icons: {
     16: 'icons/icon-16.png',

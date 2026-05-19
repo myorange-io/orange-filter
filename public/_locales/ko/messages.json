@@ -1,7 +1,11 @@
 {
   "appName": {
-    "message": "오렌지 필터 - AI 프라이버시 필터",
+    "message": "오렌지 필터(Orange Filter) - AI 프라이버시 필터",
     "description": "Extension name shown in Chrome Web Store and the extension manager."
+  },
+  "appShortName": {
+    "message": "오렌지 필터",
+    "description": "Short extension name (max 12 chars) shown in narrow UIs like the toolbar overflow menu and shelf."
   },
   "appDescription": {
     "message": "LLM에 텍스트를 붙여넣거나 파일을 올리기 전, PC 안에서 개인정보를 가려냅니다.",
