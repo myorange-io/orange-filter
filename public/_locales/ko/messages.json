@@ -1,10 +1,10 @@
 {
   "appName": {
-    "message": "Orange Filter - AI 프라이버시 필터",
+    "message": "오렌지 필터 - AI 프라이버시 필터",
     "description": "Extension name shown in Chrome Web Store and the extension manager."
   },
   "appDescription": {
-    "message": "LLM(ChatGPT·Gemini·Claude·오렌지임팩트)에 붙여넣거나 파일을 올리기 전에, 개인정보를 이 PC 안에서 자동으로 가립니다.",
+    "message": "LLM에 텍스트를 붙여넣거나 파일을 올리기 전, PC 안에서 개인정보를 가려냅니다.",
     "description": "Extension description shown in Chrome Web Store."
   }
 }
