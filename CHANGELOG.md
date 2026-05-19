@@ -5,6 +5,16 @@
 
 ---
 
+## [1.5.4] — 2026-05-20
+
+CWS 업로드 zip 다이어트. 기능 변경 없음.
+
+### Changed
+
+- **빌드 산출물에서 중복된 ORT WASM 제거** — Vite/Rollup이 onnxruntime-web 내부의 `new URL("ort-wasm-*.wasm", import.meta.url)` fallback 패턴을 자동 번들해 `dist/assets/`에 23MB 사본을 만들고 있었다. 런타임은 `env.backends.onnx.wasm.wasmPaths = chrome.runtime.getURL('ort/')`가 우선이라 이 사본은 dead weight였다. postbuild 훅(`scripts/prune-bundled-ort-wasm.mjs`)으로 정리. dist 108MB → 87MB, CWS zip 30.95MB → 25.20MB(-18.6%).
+
+---
+
 ## [1.5.3] — 2026-05-20
 
 CWS 양방향 검색 노출 (한글 + 영문) 강화. `short_name` 추가로 좁은 UI에서 브랜드 잘림 방지. 기능 변경 없음.
