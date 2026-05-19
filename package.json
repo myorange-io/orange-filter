@@ -8,6 +8,7 @@
     "predev": "node scripts/setup-tesseract.mjs && node scripts/build-icons.mjs",
     "build": "tsc --noEmit && vite build",
     "prebuild": "node scripts/setup-tesseract.mjs && node scripts/build-icons.mjs",
+    "postbuild": "node scripts/prune-bundled-ort-wasm.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
