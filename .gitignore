@@ -33,7 +33,7 @@ coverage
 *.swo
 
 # claude session artifacts (per-developer)
-.claude/local
+.claude/
 
 # 실제 NPO 양식 픽스처 (개인정보 노출 가능성 — 로컬 전용)
 sample/
@@ -54,4 +54,3 @@ releases/
 # AEGIS PII 측정 산출물 (스크립트와 케이스셋은 commit, report만 제외)
 scripts/eval-aegis/report.json
 .cache/huggingface/
-.claude/worktrees/
