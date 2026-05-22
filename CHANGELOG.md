@@ -5,6 +5,20 @@
 
 ---
 
+## [1.5.5] — 2026-05-22
+
+부서명+직책 합성어 person_name 오탐 차단 + 사이드패널 푸터에 버전 표기.
+
+### Fixed
+
+- **"전략기획본부장"의 '전략기획' 오탐 차단** — `NAME_WITH_TITLE` 정규식이 "성씨(전) + 한글 3자(략기획) + 직책(본부장) lookahead"로 매치해 부서명 합성어를 person_name으로 잘못 잡던 문제. `DEPT_TITLE_STOPLIST`(전략기획·정보보안·고객지원·홍보·안전관리 등 부서·기능명)로 차단. `detectContextualName`·`detectGeneralName` 두 호출지점에 모두 적용. 진짜 이름("김민수 본부장")은 영향 없음. mergeSpans가 regex 우선이라 NER이 같은 범위를 ORG로 봐도 veto 불가능한 구조적 한계의 즉효성 대응 — 추후 NER veto 정책으로 일반화 예정.
+
+### Added
+
+- **사이드패널 푸터에 확장 버전 표시** — `chrome.runtime.getManifest().version`을 런타임에 읽어 `v1.5.5` 형태로 우하단에 표시. manifest를 단일 진실원으로 두어 릴리즈 시 package.json/manifest.config.ts만 갱신하면 자동 반영.
+
+---
+
 ## [1.5.4] — 2026-05-20
 
 CWS 업로드 zip 다이어트. 기능 변경 없음.

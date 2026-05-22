@@ -97,6 +97,12 @@ export function App() {
     (c) => settings.enabledByCategory[c] ?? false,
   ).length;
 
+  // manifest.json의 version을 런타임에 읽어 단일 진실원으로 사용 (package.json·manifest.config.ts 동기화 부담 없음).
+  const appVersion =
+    typeof chrome !== 'undefined' && chrome.runtime?.getManifest
+      ? chrome.runtime.getManifest().version
+      : null;
+
   // 게이트 통과 전엔 본문 입력 UI를 렌더링하지 않는다 — 사용자 정의(A 모드).
   // ?skipGate=1: e2e 회귀용 escape hatch. 검출은 모델 없으면 regex fallback이라
   // 보안 리스크 없음. 진짜 사용자는 chrome.storage 기반 useModelCached로 평가됨.
@@ -315,23 +321,30 @@ export function App() {
               의견 보내기
             </a>
           </p>
-          <a
-            href="https://corp.myorange.io"
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="마이오렌지"
-            className="mt-5 inline-block opacity-60 transition-opacity hover:opacity-100"
-          >
-            <img
-              src={
-                typeof chrome !== 'undefined' && chrome.runtime?.getURL
-                  ? chrome.runtime.getURL('myorange.svg')
-                  : '/myorange.svg'
-              }
-              alt="마이오렌지"
-              className="h-4 w-auto"
-            />
-          </a>
+          <div className="mt-5 flex items-end justify-between">
+            <a
+              href="https://corp.myorange.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="마이오렌지"
+              className="inline-block opacity-60 transition-opacity hover:opacity-100"
+            >
+              <img
+                src={
+                  typeof chrome !== 'undefined' && chrome.runtime?.getURL
+                    ? chrome.runtime.getURL('myorange.svg')
+                    : '/myorange.svg'
+                }
+                alt="마이오렌지"
+                className="h-4 w-auto"
+              />
+            </a>
+            {appVersion && (
+              <span className="text-[10px] tabular-nums opacity-60">
+                v{appVersion}
+              </span>
+            )}
+          </div>
         </footer>
       </main>
       <FileReviewDialog

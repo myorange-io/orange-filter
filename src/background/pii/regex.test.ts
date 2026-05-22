@@ -555,6 +555,35 @@ describe('NAME_WITH_TITLE 4자 이름 (title-context, hintOnly cell)', () => {
     expect(detectContextualName('남궁아무개 교수').find((s) => s.category === 'person_name')?.text)
       .toBe('남궁아무개');
   });
+
+  // v1.5.5 — 사용자 보고: "전략기획본부장"의 "전략기획"이 person_name으로 오탐.
+  // 부서명+조직 단위 직책 합성어는 DEPT_TITLE_STOPLIST로 차단. 진짜 이름은 영향 없음.
+  describe('부서명+직책 합성어 차단 (DEPT_TITLE_STOPLIST)', () => {
+    it('전략기획본부장 → "전략기획" person_name 미검출', () => {
+      const text = 'MD팀에서 새 상품 홍보를 의뢰하면 업무를 맡은 팀에서 기획해 보고를 올리는데 ‘기획자→ 해당 팀 팀장→기획 담당→ 전략기획본부장→대표이사’ 단계로 진행된다.';
+      const names = detectContextualName(text)
+        .filter((s) => s.category === 'person_name')
+        .map((s) => s.text);
+      expect(names).not.toContain('전략기획');
+    });
+
+    it('정보보안실장·고객지원팀장·홍보팀장 모두 미검출', async () => {
+      const { detectGeneralName } = await import('./regex');
+      const cases = ['정보보안실장', '고객지원팀장', '홍보팀장', '안전관리부장'];
+      for (const c of cases) {
+        const names = detectGeneralName(c)
+          .filter((s) => s.category === 'person_name')
+          .map((s) => s.text);
+        expect(names, `case=${c}`).toEqual([]);
+      }
+    });
+
+    it('진짜 이름은 영향 없음 — 김민수 본부장은 여전히 검출', async () => {
+      const { detectGeneralName } = await import('./regex');
+      const name = detectGeneralName('김민수 본부장').find((s) => s.category === 'person_name');
+      expect(name?.text).toBe('김민수');
+    });
+  });
 });
 
 // =============================================================================

@@ -445,6 +445,58 @@ const NAME_BARE_STOPLIST: ReadonlySet<string> = new Set([
   '통장사', '통장의', '통장을',
 ]);
 
+/**
+ * NAME_WITH_TITLE 전용 stoplist — 부서·기능명 + 조직 단위 직책 합성어.
+ *
+ * 동기: "전략기획본부장"에서 정규식이 "전(성)+략기획(3자)+본부장(직책 lookahead)"으로 매치해
+ * `전략기획`을 person_name으로 잘못 잡았다는 사용자 보고. NER은 동일 범위를 ORG/일반어로 보더라도
+ * mergeSpans가 regex 스팬을 항상 유지하므로 veto가 불가능 — regex 단계에서 차단해야 한다.
+ *
+ * 등록 기준: (a) 첫 글자가 KOREAN_SURNAMES에 속해 lookahead 매치를 유발할 수 있고
+ * (b) 한국 NPO·기업 조직도에서 부서명·기능명으로 흔히 쓰이는 한자어 합성어. 2~4자.
+ *
+ * NAME_BARE_STOPLIST와 분리한 이유: NAME_BARE는 3자만, 여긴 2~4자 범위가 필요하고
+ * 의미적으로 "직책 앞 부서명" 군집을 명시적으로 표현하기 위함.
+ */
+const DEPT_TITLE_STOPLIST: ReadonlySet<string> = new Set([
+  // 전- (전략·전산·전사)
+  '전략', '전산', '전사', '전략기획', '전산관리', '전사보안',
+  // 정- (정보·정책)
+  '정보', '정책', '정보보안', '정보보호', '정보관리', '정보화', '정책기획',
+  // 고- (고객)
+  '고객', '고객지원', '고객만족', '고객관리',
+  // 안- (안전)
+  '안전', '안전관리', '안전보건', '안전기획',
+  // 홍- (홍보)
+  '홍보', '홍보기획',
+  // 노- (노무·노사)
+  '노무', '노사',
+  // 강- (강의·강사) — 직책 동반 케이스
+  '강의', '강사',
+  // 성- (성과)
+  '성과', '성과관리',
+  // 주- (주관·주최)
+  '주관', '주최',
+  // 신- (신사업·신규)
+  '신사업', '신규사업',
+  // 서- (서비스)
+  '서비스',
+  // 도- (도시·도서)
+  '도시', '도서',
+  // 박- (박물)
+  '박물',
+  // 임- (임상·임원)
+  '임상', '임원',
+  // 송- (송무)
+  '송무',
+  // 변- (변호)
+  '변호',
+  // 백- (백신·백서)
+  '백신', '백서',
+  // 윤- (윤리)
+  '윤리', '윤리경영',
+]);
+
 // =============================================================================
 // Detectors
 // =============================================================================
@@ -904,6 +956,7 @@ export function detectContextualName(text: string): PIISpan[] {
   // 직책/존칭 동반 — 높은 confidence
   for (const m of text.matchAll(NAME_WITH_TITLE)) {
     if (m.index === undefined) continue;
+    if (DEPT_TITLE_STOPLIST.has(m[0])) continue;
     out.push({
       start: m.index,
       end: m.index + m[0].length,
@@ -987,6 +1040,7 @@ export function detectGeneralName(text: string): PIISpan[] {
   }
   for (const m of text.matchAll(NAME_WITH_TITLE)) {
     if (m.index === undefined) continue;
+    if (DEPT_TITLE_STOPLIST.has(m[0])) continue;
     out.push({
       start: m.index,
       end: m.index + m[0].length,
