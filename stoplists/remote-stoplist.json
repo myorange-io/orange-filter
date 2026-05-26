@@ -1,9 +1,9 @@
 {
   "$schema": "./schema.json",
-  "version": "2026-05-26.1",
-  "updated": "2026-05-26T00:00:00Z",
+  "version": "2026-05-26.2",
+  "updated": "2026-05-26T07:45:00Z",
   "stoplists": {
-    "name_bare": [],
+    "name_bare": ["주일만"],
     "name_2char": [],
     "name_4char": [],
     "dept_title": [],
