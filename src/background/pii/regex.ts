@@ -240,7 +240,7 @@ const ROMAN_NAME_PATTERN = new RegExp(
     `(?<![A-Za-z0-9])(?:[A-Z][a-z]+){1,2}(?:${ROMAN_KOREAN_SURNAME_PATTERN})(?![A-Za-z0-9])`,
   'g',
 );
-const ROMAN_NAME_STOPLIST: ReadonlySet<string> = new Set([
+const ROMAN_NAME_STOPLIST_BUNDLED: ReadonlySet<string> = new Set([
   // 일반 단어 (FP 가능성 — 미국식 약어 등)
   'JavaScript','TypeScript','GitHub','LinkedIn','OpenAI','PowerPoint',
   'NodeJS','MacOS','iOS','iPad','iPhone',
@@ -342,7 +342,7 @@ const NAME_4CHAR_CONTEXT = new RegExp(
   'g',
 );
 // 4자 일반 명사 stoplist — 한국 4자 한자어/표현이 boundary에 노출돼도 차단.
-const NAME_4CHAR_STOPLIST: ReadonlySet<string> = new Set([
+const NAME_4CHAR_STOPLIST_BUNDLED: ReadonlySet<string> = new Set([
   '한국문화','한국정부','한국대표','한국사회','한국전쟁','한국역사',
   '서울특별','서울대학','서울지역','서울시청',
   '정부정책','정부지원','정부발표','정부조직',
@@ -354,7 +354,7 @@ const NAME_4CHAR_STOPLIST: ReadonlySet<string> = new Set([
   '이사회의','이사진행',
 ]);
 // 2자 이름 stoplist — boundary 기준으로 매치되더라도 흔한 명사면 차단.
-const NAME_2CHAR_STOPLIST: ReadonlySet<string> = new Set([
+const NAME_2CHAR_STOPLIST_BUNDLED: ReadonlySet<string> = new Set([
   '이상','이하','이전','이후','이외','이내','이래','이번','이때','이런','이상',
   '이미','이것','이거','이게','이런','이걸','이를','이는','이로','이와','이도',
   '김치','김밥','김장',
@@ -378,7 +378,7 @@ const NAME_2CHAR_STOPLIST: ReadonlySet<string> = new Set([
 ]);
 
 // 3자 매칭 중에도 흔한 일반명사/어미는 stoplist로 차단. 주기적으로 갱신 필요.
-const NAME_BARE_STOPLIST: ReadonlySet<string> = new Set([
+const NAME_BARE_STOPLIST_BUNDLED: ReadonlySet<string> = new Set([
   // -시기/-니다 같은 동사 어미
   '주시기', '주신분', '주신다', '주시는', '주십시', '주시고', '주실수', '주는데',
   '주세요', '주실까', '주십니', '주셔서', '주셨어', '주실분', '주시오', '주신분',
@@ -443,6 +443,14 @@ const NAME_BARE_STOPLIST: ReadonlySet<string> = new Set([
   '정규직', '비정규', '계약직', '임시직',
   '면허증', '면허를', '면허의',
   '통장사', '통장의', '통장을',
+  // v1.5.6 — 브랜드/제품명 외래어 일반명사. 사용자 보고: "오렌지 필터(Orange Filter)" 안 "오렌지"가
+  // 성씨 "오" + 2자로 NAME_BARE 매치되어 person_name FP. 한국 일상에 자주 등장하는 3자 외래어 우선.
+  '오렌지',
+  // v1.5.6 — "안" 성씨 + 일반어 합성. 사용자 보고: "PC 안에서 개인정보..." 안 "안에서"가
+  // "안(성)+에서(2자)"로 NAME_BARE 매치. 한국어 location 표현·일반 명사가 흔히 충돌.
+  '안에서', '안으로', '안에는', '안에도', '안에만',
+  '안내자', '안내문', '안내서', '안내판', '안내소',
+  '안전성', '안정성', '안정감',
 ]);
 
 /**
@@ -458,7 +466,7 @@ const NAME_BARE_STOPLIST: ReadonlySet<string> = new Set([
  * NAME_BARE_STOPLIST와 분리한 이유: NAME_BARE는 3자만, 여긴 2~4자 범위가 필요하고
  * 의미적으로 "직책 앞 부서명" 군집을 명시적으로 표현하기 위함.
  */
-const DEPT_TITLE_STOPLIST: ReadonlySet<string> = new Set([
+const DEPT_TITLE_STOPLIST_BUNDLED: ReadonlySet<string> = new Set([
   // 전- (전략·전산·전사)
   '전략', '전산', '전사', '전략기획', '전산관리', '전사보안',
   // 정- (정보·정책)
@@ -496,6 +504,72 @@ const DEPT_TITLE_STOPLIST: ReadonlySet<string> = new Set([
   // 윤- (윤리)
   '윤리', '윤리경영',
 ]);
+
+// =============================================================================
+// 원격 stoplist (v1.5.6+) — GitHub raw URL에서 fetch한 추가 entries
+// =============================================================================
+// 배경: CWS 검수 사이클(1~3일) 없이 오탐 패턴을 핫픽스 가능. 새 단어 발견 시
+// stoplists/remote-stoplist.json에 commit + push → 사용자 확장이 다음 시작
+// (또는 24h cache 만료) 시 자동 반영.
+//
+// 모델: BUNDLED는 빌드 시 고정된 default, REMOTE는 fetch 결과로 매번 교체.
+// 검사는 두 set의 합집합. fetch 실패 시 REMOTE는 빈 set이지만 BUNDLED만으로
+// 동작하므로 회귀 없음.
+
+let NAME_BARE_STOPLIST_REMOTE: ReadonlySet<string> = new Set();
+let NAME_2CHAR_STOPLIST_REMOTE: ReadonlySet<string> = new Set();
+let NAME_4CHAR_STOPLIST_REMOTE: ReadonlySet<string> = new Set();
+let DEPT_TITLE_STOPLIST_REMOTE: ReadonlySet<string> = new Set();
+let ROMAN_NAME_STOPLIST_REMOTE: ReadonlySet<string> = new Set();
+
+function inNameBareStoplist(word: string): boolean {
+  return NAME_BARE_STOPLIST_BUNDLED.has(word) || NAME_BARE_STOPLIST_REMOTE.has(word);
+}
+function inName2CharStoplist(word: string): boolean {
+  return NAME_2CHAR_STOPLIST_BUNDLED.has(word) || NAME_2CHAR_STOPLIST_REMOTE.has(word);
+}
+function inName4CharStoplist(word: string): boolean {
+  return NAME_4CHAR_STOPLIST_BUNDLED.has(word) || NAME_4CHAR_STOPLIST_REMOTE.has(word);
+}
+function inDeptTitleStoplist(word: string): boolean {
+  return DEPT_TITLE_STOPLIST_BUNDLED.has(word) || DEPT_TITLE_STOPLIST_REMOTE.has(word);
+}
+function inRomanNameStoplist(word: string): boolean {
+  return ROMAN_NAME_STOPLIST_BUNDLED.has(word) || ROMAN_NAME_STOPLIST_REMOTE.has(word);
+}
+
+/**
+ * 원격 stoplist의 형태. stoplists/schema.json 참고.
+ */
+export interface RemoteStoplistPayload {
+  readonly name_bare?: ReadonlyArray<string>;
+  readonly name_2char?: ReadonlyArray<string>;
+  readonly name_4char?: ReadonlyArray<string>;
+  readonly dept_title?: ReadonlyArray<string>;
+  readonly roman_name?: ReadonlyArray<string>;
+}
+
+/**
+ * 원격 stoplist 적용 — 각 카테고리의 REMOTE set을 전체 교체.
+ * 멱등성: 같은 payload로 여러 번 호출해도 결과 동일.
+ * BUNDLED는 항상 보존되므로 잘못된 remote payload로 호출해도 회귀 없음.
+ *
+ * 호출 시점: background service worker startup에서 fetch 성공 시.
+ */
+export function applyRemoteStoplists(payload: RemoteStoplistPayload): void {
+  NAME_BARE_STOPLIST_REMOTE = new Set(payload.name_bare ?? []);
+  NAME_2CHAR_STOPLIST_REMOTE = new Set(payload.name_2char ?? []);
+  NAME_4CHAR_STOPLIST_REMOTE = new Set(payload.name_4char ?? []);
+  DEPT_TITLE_STOPLIST_REMOTE = new Set(payload.dept_title ?? []);
+  ROMAN_NAME_STOPLIST_REMOTE = new Set(payload.roman_name ?? []);
+}
+
+/**
+ * 테스트 전용 — REMOTE set 전체를 초기화.
+ */
+export function _resetRemoteStoplistsForTest(): void {
+  applyRemoteStoplists({});
+}
 
 // =============================================================================
 // Detectors
@@ -902,8 +976,8 @@ export function detectContextualName(text: string): PIISpan[] {
   for (const m of text.matchAll(NAME_2CHAR_CONTEXT)) {
     if (m.index === undefined) continue;
     const matched = m[0];
-    if (NAME_2CHAR_STOPLIST.has(matched)) continue;
-    if (NAME_BARE_STOPLIST.has(matched)) continue;
+    if (inName2CharStoplist(matched)) continue;
+    if (inNameBareStoplist(matched)) continue;
     if (TITLE_SET.has(matched)) continue; // 직책 단독 매치 차단 (박사/교수/대표 등)
     const last = matched[matched.length - 1]!;
     if ('을를이가은는의에께와과로'.includes(last)) continue;
@@ -920,8 +994,8 @@ export function detectContextualName(text: string): PIISpan[] {
   for (const m of text.matchAll(NAME_4CHAR_CONTEXT)) {
     if (m.index === undefined) continue;
     const matched = m[0];
-    if (NAME_4CHAR_STOPLIST.has(matched)) continue;
-    if (NAME_BARE_STOPLIST.has(matched)) continue;
+    if (inName4CharStoplist(matched)) continue;
+    if (inNameBareStoplist(matched)) continue;
     if (TITLE_SET.has(matched)) continue;
     const last = matched[matched.length - 1]!;
     if ('을를이가은는의에께와과로'.includes(last)) continue;
@@ -940,7 +1014,7 @@ export function detectContextualName(text: string): PIISpan[] {
   for (const m of text.matchAll(NAME_BARE)) {
     if (m.index === undefined) continue;
     const matched = m[0];
-    if (NAME_BARE_STOPLIST.has(matched)) continue;
+    if (inNameBareStoplist(matched)) continue;
     if (TITLE_SET.has(matched)) continue;
     const last = matched[matched.length - 1]!;
     if ('을를이가은는의에께와과로'.includes(last)) continue;
@@ -956,7 +1030,7 @@ export function detectContextualName(text: string): PIISpan[] {
   // 직책/존칭 동반 — 높은 confidence
   for (const m of text.matchAll(NAME_WITH_TITLE)) {
     if (m.index === undefined) continue;
-    if (DEPT_TITLE_STOPLIST.has(m[0])) continue;
+    if (inDeptTitleStoplist(m[0])) continue;
     out.push({
       start: m.index,
       end: m.index + m[0].length,
@@ -981,7 +1055,7 @@ export function detectContextualName(text: string): PIISpan[] {
   // 로마자 한국 이름 (Lee/Kim/... + CamelCase 또는 그 역순)
   for (const m of text.matchAll(ROMAN_NAME_PATTERN)) {
     if (m.index === undefined) continue;
-    if (ROMAN_NAME_STOPLIST.has(m[0])) continue;
+    if (inRomanNameStoplist(m[0])) continue;
     out.push({
       start: m.index,
       end: m.index + m[0].length,
@@ -1025,7 +1099,7 @@ export function detectGeneralName(text: string): PIISpan[] {
   for (const m of text.matchAll(NAME_BARE)) {
     if (m.index === undefined) continue;
     const matched = m[0];
-    if (NAME_BARE_STOPLIST.has(matched)) continue;
+    if (inNameBareStoplist(matched)) continue;
     if (TITLE_SET.has(matched)) continue;
     const last = matched[matched.length - 1]!;
     if ('을를이가은는의에께와과로'.includes(last)) continue;
@@ -1040,7 +1114,7 @@ export function detectGeneralName(text: string): PIISpan[] {
   }
   for (const m of text.matchAll(NAME_WITH_TITLE)) {
     if (m.index === undefined) continue;
-    if (DEPT_TITLE_STOPLIST.has(m[0])) continue;
+    if (inDeptTitleStoplist(m[0])) continue;
     out.push({
       start: m.index,
       end: m.index + m[0].length,
@@ -1063,7 +1137,7 @@ export function detectGeneralName(text: string): PIISpan[] {
   }
   for (const m of text.matchAll(ROMAN_NAME_PATTERN)) {
     if (m.index === undefined) continue;
-    if (ROMAN_NAME_STOPLIST.has(m[0])) continue;
+    if (inRomanNameStoplist(m[0])) continue;
     out.push({
       start: m.index,
       end: m.index + m[0].length,

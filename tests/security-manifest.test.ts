@@ -30,18 +30,20 @@ describe('manifest 보안 회귀', () => {
     expect(m.externally_connectable).toBeUndefined();
   });
 
-  test('host_permissions: LLM 5개 + 1개(orange-impact) 한정 — 임의 사이트 차단', () => {
+  test('host_permissions: LLM 5개 + orange-impact + 원격 stoplist 한정 — 임의 사이트 차단', () => {
     const hosts = m.host_permissions ?? [];
-    expect(hosts.length).toBeLessThanOrEqual(7);
+    expect(hosts.length).toBeLessThanOrEqual(8);
     for (const h of hosts) {
-      // LLM/orange-impact 도메인만 허용
+      // LLM/orange-impact/원격 stoplist 도메인만 허용
       const ok =
         h.includes('chat.openai.com') ||
         h.includes('chatgpt.com') ||
         h.includes('claude.ai') ||
         h.includes('gemini.google.com') ||
         h.includes('perplexity.ai') ||
-        h.includes('orangeimpact');
+        h.includes('orangeimpact') ||
+        // v1.5.6: 원격 stoplist — 정확한 repo path까지 좁힘.
+        h === 'https://raw.githubusercontent.com/myorange-io/orange-filter/*';
       expect(ok, `예상 외 host_permissions: ${h}`).toBe(true);
     }
   });

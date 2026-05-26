@@ -12,9 +12,14 @@ import { maskText } from './pii/mask';
 import { mergeSpans } from './pii/merge';
 import { filterNerFalsePositives } from './pii/ner-filter';
 import { pickModel, type ModelTier, type UserMode } from './pii/router';
+import { initRemoteStoplists } from './remote-stoplist';
 import { ALL_MODELS, getModelByTier, TIER1_DEFAULT } from '@/shared/models';
 import type { DetectResult, PIISpan } from '@/shared/types';
 import type { DetectResultMsg, ErrorMsg, Message } from '@/shared/messages';
+
+// 원격 stoplist를 SW 시작 시 1회 fetch — top-level await 대신 fire-and-forget.
+// fetch 실패해도 안전: regex.ts의 BUNDLED stoplist는 항상 동작.
+void initRemoteStoplists();
 
 // 다운로드 완료된 모델 ID 집합. offscreen → background로 download done 메시지 받을 때 갱신.
 // 시작 시점에는 empty — offscreen은 첫 query 시 IndexedDB enumerate 후 보고.

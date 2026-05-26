@@ -379,6 +379,55 @@ describe('detectKoreanPII', () => {
     }
   });
 
+  it('v1.5.6: 브랜드/제품명 외래어가 person_name으로 안 잡힌다 (오렌지)', () => {
+    // 회귀 근거: 사용자 보고 — "오렌지 필터(Orange Filter) - AI 프라이버시 필터" 붙여넣기에서
+    // "오"(KOREAN_SURNAMES) + "렌지" 2자가 NAME_BARE에 매치되어 "오렌지"가 person_name으로 잡힘.
+    const cases = [
+      '오렌지 필터(Orange Filter) - AI 프라이버시 필터',
+      '오렌지임팩트 소개',
+      '오렌지 주스 한 잔',
+      '오렌지는 비타민C가 풍부합니다',
+    ];
+    for (const text of cases) {
+      const spans = detectKoreanPII(text);
+      const names = spans.filter((s) => s.category === 'person_name');
+      expect(names, `case "${text}"`).toEqual([]);
+    }
+  });
+
+  it('v1.5.6: "안" 성씨 합성 일반어가 person_name으로 안 잡힌다 (안에서/안내자/안전성)', () => {
+    // 회귀 근거: 사용자 보고 — "PC 안에서 개인정보를 가려냅니다" 안 "안에서"가
+    // "안(성)+에서(2자)"로 NAME_BARE 매치되어 person_name FP.
+    const cases = [
+      'Orange Filter는 비영리 단체가 생성형 AI를 업무에 안전하게 쓰기 위한 Chrome 확장입니다. 텍스트를 붙여넣거나 파일을 올리기 전, PC 안에서 개인정보를 가려냅니다.',
+      '캐시 안으로 들어왔다',
+      '회의실 안에는 자료가 없다',
+      '안내자가 자리를 안내했다',
+      '안내문을 배포했다',
+      '서비스의 안전성과 안정성 검증',
+    ];
+    for (const text of cases) {
+      const spans = detectKoreanPII(text);
+      const names = spans.filter((s) => s.category === 'person_name');
+      expect(names, `case "${text}"`).toEqual([]);
+    }
+  });
+
+  it('v1.5.6: "안" 성씨 진짜 인명 recall은 깨지 않는다', () => {
+    // 신규 stoplist가 "안"으로 시작하는 진짜 인명을 잡지 못하게 하지 않는지 sanity check.
+    const cases: Array<[string, string]> = [
+      ['안철수 대표', '안철수'],
+      ['안중근 의사', '안중근'],
+      ['안창호 선생님께', '안창호'],
+    ];
+    for (const [text, expectedName] of cases) {
+      const names = detectKoreanPII(text)
+        .filter((s) => s.category === 'person_name')
+        .map((s) => s.text);
+      expect(names, `case "${text}"`).toContain(expectedName);
+    }
+  });
+
   it('detectContextualName: 실제 인명 3자 매칭 (이의헌/김난일/김강석)', () => {
     for (const text of ['이의헌 외 6인', '김난일 비상임', '대표 김강석']) {
       const names = detectContextualName(text).filter((s) => s.category === 'person_name');

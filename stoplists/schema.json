@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OrangeFilterRemoteStoplist",
+  "type": "object",
+  "required": ["version", "updated", "stoplists"],
+  "additionalProperties": true,
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "YYYY-MM-DD.N (그날의 N번째 갱신). 클라이언트는 cache hit 판단에만 사용."
+    },
+    "updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC."
+    },
+    "stoplists": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name_bare": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 8 },
+          "description": "NAME_BARE(3자 한국이름 패턴) 차단 후보. 예: '오렌지'(외래어 일반명사)."
+        },
+        "name_2char": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 4 },
+          "description": "NAME_2CHAR_CONTEXT(2자 boundary 매치) 차단."
+        },
+        "name_4char": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 8 },
+          "description": "NAME_4CHAR_CONTEXT(4자 boundary 매치) 차단."
+        },
+        "dept_title": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 12 },
+          "description": "NAME_WITH_TITLE(부서명+직책 합성어) 차단. 예: '전략기획', '정보보안'."
+        },
+        "roman_name": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 2, "maxLength": 40 },
+          "description": "ROMAN_NAME_PATTERN(한국 성씨 영문+CamelCase) 차단."
+        }
+      }
+    }
+  }
+}
