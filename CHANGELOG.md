@@ -5,6 +5,16 @@
 
 ---
 
+## [1.5.7.1] — 2026-05-26
+
+확장 이름에서 공백 제거 — "오렌지 필터" → "오렌지필터".
+
+### Changed
+
+- **브랜드명 한글 표기 공백 제거** — `_locales/ko/messages.json`의 `appName`("오렌지 필터(Orange Filter) - AI 프라이버시 필터" → "오렌지필터(Orange Filter) - AI 프라이버시 필터"), `appShortName`("오렌지 필터" 5자 → "오렌지필터" 4자) 갱신. CWS 표시명·툴바·shelf에서 공백 없는 한 단어로 노출. 영문 브랜드 "Orange Filter"는 그대로 유지. 운영 문서(`stoplists/remote-stoplist.json` note)도 동기화. CHANGELOG 과거 release 기록과 회귀 테스트 입력(v1.5.3·v1.5.6 사용자 보고 원문)은 그 시점 이름이라 보존.
+
+---
+
 ## [1.5.7] — 2026-05-26
 
 verb 어미(된·함·됨)로 끝나는 한자어 합성 오탐 차단.
