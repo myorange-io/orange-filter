@@ -19,7 +19,7 @@ export default defineManifest({
   name: '__MSG_appName__',
   short_name: '__MSG_appShortName__',
   description: '__MSG_appDescription__',
-  version: '1.5.5',
+  version: '1.5.6',
   default_locale: 'ko',
   icons: {
     16: 'icons/icon-16.png',
@@ -49,7 +49,12 @@ export default defineManifest({
       all_frames: false,
     },
   ],
-  host_permissions: LLM_HOSTS,
+  // v1.5.6: 원격 stoplist fetch용 — myorange-io/orange-filter repo raw URL만 허용.
+  // 다른 GitHub repo의 raw 콘텐츠는 차단된다.
+  host_permissions: [
+    ...LLM_HOSTS,
+    'https://raw.githubusercontent.com/myorange-io/orange-filter/*',
+  ],
   permissions: ['storage', 'sidePanel', 'offscreen'],
   // MV3 WASM 컴파일 허용. ORT WebAssembly(transformers.js) + Tesseract WASM이 필요.
   // 'wasm-unsafe-eval'은 MV3에서 유일하게 허용되는 WASM 컴파일 옵션 (strict CSP 호환).

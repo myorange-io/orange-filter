@@ -5,6 +5,33 @@
 
 ---
 
+## [1.5.6] — 2026-05-26
+
+브랜드/제품명 외래어 오탐 차단 + 원격 stoplist 메커니즘 도입.
+
+### Fixed
+
+- **"오렌지 필터"의 '오렌지' 오탐 차단** — `NAME_BARE` 정규식이 "성씨(오) + 2자(렌지)" 패턴으로 매치해 외래어 일반명사를 person_name으로 잘못 잡던 문제. `NAME_BARE_STOPLIST`에 '오렌지' 추가. v1.5.3에서 확장 이름이 "오렌지 필터(Orange Filter) - AI 프라이버시 필터"로 바뀐 뒤 자기 자신의 브랜드명을 오탐하는 dogfooding 케이스에서 발견. 진짜 인명 recall 영향 없음.
+
+- **"안" 성씨 + 일반어 합성 오탐 차단** — "PC 안에서 개인정보를 가려냅니다" 안 "안에서"가 `NAME_BARE`("안" 성씨 + "에서" 2자)에 매치되어 person_name으로 잘못 잡히던 문제. 한국어 location 표현("안에서/안으로/안에는/안에도/안에만")과 흔한 합성어("안내자/안내문/안내서/안내판/안내소", "안전성/안정성/안정감")를 `NAME_BARE_STOPLIST`에 추가. "안철수"·"안중근"·"안창호" 같은 진짜 "안" 성씨 인명 recall은 회귀 테스트로 보장.
+
+### Added
+
+- **원격 stoplist 메커니즘 — CWS 검수 사이클 우회 핫픽스** — 새 오탐 패턴 발견 시마다 코드 수정 → 빌드 → CWS 검수(평균 1~3일) → 사용자 업데이트 사이클을 거치던 운영 부담을 해소. `stoplists/remote-stoplist.json`을 main 브랜치에 commit + push하면, 사용자 확장이 다음 시작 또는 24h cache 만료 시 자동 반영. 5개 카테고리(NAME_BARE/NAME_2CHAR/NAME_4CHAR/DEPT_TITLE/ROMAN_NAME) 모두 외부에서 확장 가능.
+
+  - 호스팅: `https://raw.githubusercontent.com/myorange-io/orange-filter/main/stoplists/remote-stoplist.json` (manifest `host_permissions`로 정확한 repo path만 허용)
+  - 캐싱: `chrome.storage.local`, TTL 24h
+  - Fallback 순서: 신선 캐시 → fetch → stale 캐시 → 번들 default
+  - 보안: HTTPS + 스키마 validation. SHA256 무결성·서명은 v2에서.
+
+  AEGIS NER 측정 결과(2026-05-26): "오렌지"·"전략기획"·"지급처" 등 stoplist 후보들은 NER도 침묵하지만, "조성도"·"홍길동" 같은 진짜 인명도 함께 침묵해 NER veto 정책이 안전하지 않음을 확인. 운영 친화적 원격 stoplist가 현재로서 최적의 해법.
+
+### Changed
+
+- **regex.ts stoplist 구조** — 5개 stoplist를 `_BUNDLED`(불변 default)와 `_REMOTE`(runtime 교체) 두 set으로 분리. `inNameBareStoplist` 등 helper로 합집합 검사. `applyRemoteStoplists` export로 background에서 원격 페이로드 주입.
+
+---
+
 ## [1.5.5] — 2026-05-22
 
 부서명+직책 합성어 person_name 오탐 차단 + 사이드패널 푸터에 버전 표기.
