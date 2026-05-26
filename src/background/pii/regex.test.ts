@@ -428,6 +428,61 @@ describe('detectKoreanPII', () => {
     }
   });
 
+  it('v1.5.7: verb 어미(된/함/됨)로 끝나는 3자 한자어가 person_name 오탐 안 함', () => {
+    // 회귀 근거: 사용자 보고 — "현재 저에게 전달된 파일의..." 안 "전달된"이 NAME_BARE
+    // ("전" 성씨 + "달된")로 person_name FP. "성씨+한자어+되다/하다 변형"이 광범위한 한국어 패턴이라
+    // boundary 글자를 '된/함/됨'까지 확장해 일반 차단.
+    const cases = [
+      '오렌지님, 말씀하신 내용을 분석하여 지표에 반영해 드리고 싶지만, 현재 저에게 전달된 파일의 텍스트 내용이 확인되지 않고 있어요.',
+      '강조된 부분이 있다',
+      '변경된 항목을 확인',
+      '진행된 회의 정리',
+      '신청된 건수',
+      '검토된 안건',
+      '한정된 기간',
+      '임명된 위원',
+      '소속된 단체',
+      '정의됨이 분명하다',
+      '확인됨을 알린다',
+    ];
+    for (const text of cases) {
+      const spans = detectKoreanPII(text);
+      const names = spans
+        .filter((s) => s.category === 'person_name')
+        .map((s) => s.text);
+      // verb 변형들은 모두 차단되어야 한다.
+      for (const verb of ['전달된', '강조된', '변경된', '진행된', '신청된', '검토된', '한정된', '임명된', '소속된', '정의됨', '확인됨']) {
+        expect(names, `case "${text}" should not contain "${verb}"`).not.toContain(verb);
+      }
+    }
+  });
+
+  it('v1.5.7: "오렌지님" 호칭은 person_name으로 정상 탐지 (NAME_WITH_TITLE)', () => {
+    // 사용자 확인: 호칭 "님"이 붙으면 PII로 잡는 게 맞다. v1.5.6 NAME_BARE_STOPLIST '오렌지'와
+    // 별개로 NAME_WITH_TITLE 정규식이 작동하는지 확인.
+    const text = '오렌지님, 말씀하신 내용을 분석하여 드리겠습니다.';
+    const names = detectKoreanPII(text)
+      .filter((s) => s.category === 'person_name')
+      .map((s) => s.text);
+    expect(names).toContain('오렌지');
+  });
+
+  it('v1.5.7: verb 어미 차단이 진짜 인명 recall은 깨지 않는다', () => {
+    // 한국 이름의 마지막 글자가 '된/함/됨'인 경우는 사실상 없지만, 일반 인명 패턴 sanity check.
+    const cases: Array<[string, string]> = [
+      ['김민수 팀장님께 전달했습니다', '김민수'],
+      ['박지영 담당이 진행한다', '박지영'],
+      ['전우치 같은 인물', '전우치'],
+      ['조성도 회원', '조성도'],
+    ];
+    for (const [text, expectedName] of cases) {
+      const names = detectKoreanPII(text)
+        .filter((s) => s.category === 'person_name')
+        .map((s) => s.text);
+      expect(names, `case "${text}"`).toContain(expectedName);
+    }
+  });
+
   it('detectContextualName: 실제 인명 3자 매칭 (이의헌/김난일/김강석)', () => {
     for (const text of ['이의헌 외 6인', '김난일 비상임', '대표 김강석']) {
       const names = detectContextualName(text).filter((s) => s.category === 'person_name');
