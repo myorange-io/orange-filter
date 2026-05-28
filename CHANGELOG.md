@@ -5,6 +5,16 @@
 
 ---
 
+## [1.5.8.1] — 2026-05-28
+
+원격 stoplist cache TTL 12h로 단축.
+
+### Changed
+
+- **`CACHE_TTL_MS` 24h → 12h** — 핫픽스 반영 속도 ↑. 장기 세션 사용자(서비스 워커가 살아있어 startup 이벤트 없음)의 원격 stoplist 갱신 latency가 절반으로 감소. 트레이드오프: 네트워크 호출 빈도 2배, 단 fetch는 GitHub raw CDN 정적 JSON(< 2KB)이라 비용 무시할 만함. `src/background/remote-stoplist.ts` 상수 + 관련 주석/README/note 일괄 갱신. 회귀 테스트의 stale 캐시 케이스(25h ago)는 12h TTL 환경에서도 여전히 stale로 인식되어 통과.
+
+---
+
 ## [1.5.8] — 2026-05-28
 
 동음이의어 인명 후보(예: "이미지") NER cross-validation — 전체 맥락 기반 PII 판단.

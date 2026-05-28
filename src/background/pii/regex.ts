@@ -475,7 +475,7 @@ const HOMONYM_NAME_CANDIDATES_BUNDLED: ReadonlySet<string> = new Set([
 ]);
 
 // REMOTE는 stoplists/remote-stoplist.json의 `name_homonym` 배열에서 fetch.
-// 사용자 확장이 다음 시작(또는 24h cache 만료) 시 자동 반영 — CWS 검수 불필요.
+// 사용자 확장이 다음 시작(또는 12h cache 만료) 시 자동 반영 — CWS 검수 불필요.
 let HOMONYM_NAME_CANDIDATES_REMOTE: ReadonlySet<string> = new Set();
 
 function isHomonymNameCandidate(word: string): boolean {
@@ -539,7 +539,7 @@ const DEPT_TITLE_STOPLIST_BUNDLED: ReadonlySet<string> = new Set([
 // =============================================================================
 // 배경: CWS 검수 사이클(1~3일) 없이 오탐 패턴을 핫픽스 가능. 새 단어 발견 시
 // stoplists/remote-stoplist.json에 commit + push → 사용자 확장이 다음 시작
-// (또는 24h cache 만료) 시 자동 반영.
+// (또는 12h cache 만료) 시 자동 반영.
 //
 // 모델: BUNDLED는 빌드 시 고정된 default, REMOTE는 fetch 결과로 매번 교체.
 // 검사는 두 set의 합집합. fetch 실패 시 REMOTE는 빈 set이지만 BUNDLED만으로

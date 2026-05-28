@@ -1,15 +1,20 @@
 // 원격 stoplist fetcher (v1.5.6+) — GitHub raw URL에서 JSON을 받아 regex stoplist를 갱신.
 //
 // 목적: 새 오탐 패턴 발견 시 CWS 검수(1~3일)를 거치지 않고 핫픽스. 운영자가 main에
-// commit + push만 하면 사용자 확장이 다음 시작 또는 24h cache 만료 시 자동 반영.
+// commit + push만 하면 사용자 확장이 다음 시작 또는 12h cache 만료 시 자동 반영.
 //
 // 흐름:
 //   1. chrome.storage.local 캐시 확인
-//   2. 캐시 신선(< 24h) → 적용 후 종료 (네트워크 호출 없음)
+//   2. 캐시 신선(< 12h) → 적용 후 종료 (네트워크 호출 없음)
 //   3. 캐시 만료 또는 없음 → fetch (10s timeout)
 //   4. fetch 성공 → 적용 + 캐시 갱신
 //   5. fetch 실패 → 만료 캐시라도 적용 (오프라인·서버 장애에서 회귀 방지)
 //   6. 캐시도 없으면 → no-op. regex.ts의 BUNDLED stoplist만 동작.
+//
+// TTL 변경 이력:
+//   v1.5.6: 24h (보수적 시작)
+//   v1.5.8.1: 12h — 핫픽스 반영 속도 ↑. 사용자 startup 시 fetch는 그대로, 장기
+//     세션 사용자(SW 살아있는 동안 startup 이벤트 없음)의 핫픽스 반영 시간 단축.
 //
 // 보안:
 //   - HTTPS + manifest host_permissions로 도메인 제한 (raw.githubusercontent.com).
@@ -21,7 +26,7 @@ import { applyRemoteStoplists, type RemoteStoplistPayload } from './pii/regex';
 const REMOTE_URL =
   'https://raw.githubusercontent.com/myorange-io/orange-filter/main/stoplists/remote-stoplist.json';
 const CACHE_KEY = 'remote_stoplist_cache_v1';
-const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 10_000;
 
 interface RemoteStoplistFile {

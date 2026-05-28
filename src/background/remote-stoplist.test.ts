@@ -173,7 +173,7 @@ describe('initRemoteStoplists', () => {
     expect(spans.map((s) => s.text)).not.toContain('오피스');
   });
 
-  it('신선한 캐시(< 24h) → 네트워크 호출 없음', async () => {
+  it('신선한 캐시(< 12h) → 네트워크 호출 없음', async () => {
     const cachedEntry = {
       fetchedAt: Date.now() - 1 * 60 * 60 * 1000, // 1h ago
       data: {

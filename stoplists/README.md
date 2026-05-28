@@ -17,7 +17,7 @@ https://raw.githubusercontent.com/myorange-io/orange-filter/main/stoplists/remot
 5. main에 commit + push
 
 사용자 확장은:
-- 시작 시 fetch (24h cache 만료 후에만 재요청)
+- 시작 시 fetch (12h cache 만료 후에만 재요청)
 - 성공 시 `chrome.storage.local`에 캐싱 + 즉시 stoplist 적용
 - 실패 시 캐시 사용 → 캐시 없으면 번들 default만 사용
 
