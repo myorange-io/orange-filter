@@ -1,9 +1,9 @@
 {
   "$schema": "./schema.json",
-  "version": "2026-05-28.3",
-  "updated": "2026-05-28T02:00:00Z",
+  "version": "2026-05-28.4",
+  "updated": "2026-05-28T03:00:00Z",
   "stoplists": {
-    "name_bare": ["주일만", "하는데"],
+    "name_bare": ["주일만", "하는데", "정통한", "오인될", "이벤트", "연령층", "소비자", "민감성"],
     "name_2char": [],
     "name_4char": [],
     "dept_title": [],
