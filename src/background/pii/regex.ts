@@ -1134,6 +1134,13 @@ export function detectContextualName(text: string): PIISpan[] {
  * v1.4: 사용자 보고 — paste 흐름에서 한국어 NER가 짧은 한글 이름(조성도)을
  * 놓치고 영문 subword(do)를 false positive로 출력하는 문제. 정규식 안전망으로 보강.
  * Stoplist + 직책 차단으로 일반어 false positive는 기존 수준 유지.
+ *
+ * v1.6: 일반 본문 NAME_BARE 매치는 모두 tentative=true로 마킹 — NER cross-validation 전면 적용.
+ * 사용자 정책상 NER 설치는 필수. v1.5.6~v1.5.9 동안 한국어 일반명사/외래어 stoplist + boundary
+ * 어미 확장으로 FP를 줄여왔으나 점근적으로 수렴하지 않음(매 보고마다 5-10개씩 새 단어 발견).
+ * 대신 mergeSpans 단계에서 NER이 같은 위치를 person_name으로 confirm 해야 채택. 호칭/직책
+ * 동반(NAME_WITH_TITLE)은 그대로 강한 신호로 채택. hintOnly 셀의 detectContextualName은
+ * 헬더 컨텍스트가 명확하므로 여전히 NAME_BARE 직접 채택(영향 없음).
  */
 export function detectGeneralName(text: string): PIISpan[] {
   const out: PIISpan[] = [];
@@ -1144,7 +1151,8 @@ export function detectGeneralName(text: string): PIISpan[] {
     if (TITLE_SET.has(matched)) continue;
     const last = matched[matched.length - 1]!;
     if ('을를이가은는의에께와과로된함됨할될한'.includes(last)) continue;
-    const tentative = isHomonymNameCandidate(matched);
+    // v1.6: 일반 본문의 NAME_BARE는 모두 tentative — NER이 confirm 해야 채택.
+    // HOMONYM_NAME_CANDIDATES 별도 검사는 일반화로 흡수(이제 모든 NAME_BARE가 동등).
     out.push({
       start: m.index,
       end: m.index + matched.length,
@@ -1152,7 +1160,7 @@ export function detectGeneralName(text: string): PIISpan[] {
       category: 'person_name',
       confidence: 0.6,
       source: 'regex',
-      ...(tentative ? { tentative: true } : {}),
+      tentative: true,
     });
   }
   for (const m of text.matchAll(NAME_WITH_TITLE)) {

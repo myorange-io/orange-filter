@@ -111,27 +111,27 @@ describe('initRemoteStoplists', () => {
     expect(after.map((s) => s.text)).not.toContain('오피스');
   });
 
-  it('v1.5.8: 원격 name_homonym 단어가 tentative=true로 마킹된다', async () => {
-    // 시나리오: '예시동음' 같은 새 동음이의어 후보를 핫픽스로 추가했다고 가정.
-    // BUNDLED에는 없지만 REMOTE로 들어와도 tentative 마킹이 작동해야 한다.
+  it('v1.6: 일반 본문 NAME_BARE는 항상 tentative (homonym 카테고리는 backward-compat만)', async () => {
+    // v1.5.8에서는 name_homonym set 가입 단어만 tentative였으나, v1.6에서 일반 본문의 모든
+    // NAME_BARE가 tentative로 일반화됨. schema의 name_homonym 카테고리는 backward-compat을
+    // 위해 유지(payload 거부하지 않음). 동작상 NAME_BARE 매치는 set 가입과 무관하게 tentative.
     fetchSpy.mockResolvedValue({
       ok: true,
       json: async () => ({
         version: '2026-05-28.x',
         updated: '2026-05-28T00:00:00Z',
-        stoplists: { name_homonym: ['오현우'] }, // '오' surname + 2자, 3자 NAME_BARE 매치 가능
+        stoplists: { name_homonym: ['오현우'] },
       }),
     });
-
-    // 적용 전: tentative 마킹 없음 (REMOTE 비어있음).
+    // 적용 전: 이미 tentative=true (v1.6 일반화).
     const before = detectKoreanPII('오현우가 도착했다').filter(
       (s) => s.category === 'person_name' && s.text === '오현우',
     );
-    expect(before[0]?.tentative).toBeUndefined();
+    expect(before[0]?.tentative).toBe(true);
 
     await initRemoteStoplists();
 
-    // 적용 후: tentative=true.
+    // 적용 후도 tentative=true. set 가입은 의미 없음.
     const after = detectKoreanPII('오현우가 도착했다').filter(
       (s) => s.category === 'person_name' && s.text === '오현우',
     );

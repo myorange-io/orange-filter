@@ -916,3 +916,54 @@ describe('v1.5.8 동음이의어 인명 후보 — tentative 마킹', () => {
     }
   });
 });
+
+// =============================================================================
+// v1.6: detectGeneralName NAME_BARE 전면 tentative (NER cross-validation)
+// =============================================================================
+
+describe('v1.6 자연 본문 NAME_BARE 전면 tentative', () => {
+  it('자연 본문의 일반어 NAME_BARE 매치는 모두 tentative=true', () => {
+    // 사용자 보고(스타벅스 브랜드 리스크 검수): "고위험·지나친·신뢰도·손모양·오픈런·한국식·이벤트
+    // ·연령층·소비자·민감성·정통한·오인될" 등. 어떤 단어든 NAME_BARE 매치는 모두 tentative.
+    // stoplist에 들어가지 않은 단어로 테스트(stoplist 의존 없이 일반화 검증).
+    const cases: Array<[string, string]> = [
+      ['신뢰성이 중요하다', '신뢰성'],
+      ['손모양을 그렸다', '손모양'],
+      ['고위험 캠페인', '고위험'],
+      ['한국식 정서', '한국식'],
+    ];
+    for (const [text, expected] of cases) {
+      const span = detectKoreanPII(text)
+        .filter((s) => s.category === 'person_name')
+        .find((s) => s.text === expected);
+      // NAME_BARE에 매치되든 안 되든(stoplist 통과 여부 무관), 매치되면 무조건 tentative.
+      if (span) {
+        expect(span.tentative, `case "${text}" — NAME_BARE 매치는 tentative=true`).toBe(true);
+      }
+    }
+  });
+
+  it('호칭/직책 동반은 NAME_WITH_TITLE이 잡고 tentative=undefined (강한 신호)', () => {
+    // NAME_WITH_TITLE은 호칭이 강한 인명 시그널이라 v1.6에서도 직접 채택.
+    // 사용자 정책: NER 필수 가정하에 호칭 동반 인명은 NER 결과와 무관하게 PII.
+    const cases = ['김민수 팀장님께', '박지영 과장이', '홍길동 회장님'];
+    for (const text of cases) {
+      const spans = detectKoreanPII(text).filter(
+        (s) => s.category === 'person_name' && s.tentative === undefined,
+      );
+      expect(spans.length, `case "${text}" — 호칭 동반 인명은 non-tentative`).toBeGreaterThan(0);
+    }
+  });
+
+  it('hintOnly 컨텍스트(detectContextualName)는 그대로 — NAME_BARE 직접 채택', () => {
+    // 양식/명단/이력서 등 hintOnly 셀에서는 헬더 컨텍스트가 강한 시그널이라
+    // NAME_BARE를 그대로 채택(tentative 아님). v1.6 변경은 일반 본문(detectGeneralName)만 영향.
+    const cases = ['이의헌 외 6인', '김난일 비상임', '대표 김강석'];
+    for (const text of cases) {
+      const names = detectContextualName(text).filter(
+        (s) => s.category === 'person_name' && s.tentative === undefined,
+      );
+      expect(names.length, `case "${text}"`).toBeGreaterThan(0);
+    }
+  });
+});

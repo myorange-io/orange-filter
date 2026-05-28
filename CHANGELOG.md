@@ -5,6 +5,35 @@
 
 ---
 
+## [1.6.0] — 2026-05-28
+
+자연 본문 NAME_BARE 전면 tentative — stoplist/boundary 게임 종료. NER cross-validation으로 컨텍스트 기반 PII 판단 일반화.
+
+### Changed
+
+- **`detectGeneralName`의 NAME_BARE 매치는 모두 `tentative=true` 마킹** — v1.5.6~v1.5.9 동안 한국어 일반명사/외래어 stoplist + boundary 어미 확장으로 자연 본문 NAME_BARE FP를 줄여왔으나, 매 보고마다 5-15개씩 새 단어가 발견되어 점근적으로 수렴하지 않음을 확인. v1.5.8의 동음이의어 cross-validation 패턴을 자연 본문 NAME_BARE 전체로 일반화. `mergeSpans` 단계에서 NER이 같은 위치(IoU ≥ 0.5)를 person_name confidence ≥ 0.7로 confirm 해야 채택. 호칭/직책 동반(`NAME_WITH_TITLE`)은 강한 신호로 그대로 채택. hintOnly 셀의 `detectContextualName`(양식·명단·이력서)은 헬더 컨텍스트가 명확하므로 영향 없음.
+
+### Policy
+
+- **NER 설치는 필수 가정** — v1.6부터 NER 미설치 사용자는 자연 본문 안 호칭 없는 단독 인명을 잡지 못함. 사용자 정책 결정으로 이 trade-off 수용. 호칭/조사 동반 인명과 hintOnly 셀 인명은 NER 무관하게 잡힘.
+
+### Architecture Cleanup
+
+- `HOMONYM_NAME_CANDIDATES` 별도 검사 로직은 일반화에 흡수 — 모든 NAME_BARE가 동등하게 tentative. set 자체와 remote `name_homonym` 카테고리는 backward-compat을 위해 schema에 유지(payload 거부하지 않음, 실제 동작에는 영향 없음).
+
+### 효과
+
+| 패턴 | v1.5.9 | v1.6.0 |
+|---|---|---|
+| "정통한·복잡한·검토할" (동사 어미) | boundary 차단 | tentative + NER 판단 |
+| "이벤트·연령층·신뢰도·손모양·오픈런·한국식" (명사 어미) | stoplist만 차단 | **모두 tentative + NER 판단** |
+| "이미지 씨/팀장" (호칭 동반) | NAME_WITH_TITLE 채택 | 그대로 |
+| 양식 셀 "이의헌 외 6인" (hintOnly) | NAME_BARE 직접 채택 | 그대로 |
+
+자연 본문 한국어 일반명사 FP는 stoplist 없이도 NER 컨텍스트 판단으로 차단.
+
+---
+
 ## [1.5.9] — 2026-05-28
 
 NAME_BARE 끝 boundary에 한국어 관형/미래 어미 '할·될·한' 추가 — 자연 본문 한자어 합성 오탐 광범위 차단.
