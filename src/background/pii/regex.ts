@@ -1017,7 +1017,7 @@ export function detectContextualName(text: string): PIISpan[] {
     if (inNameBareStoplist(matched)) continue;
     if (TITLE_SET.has(matched)) continue; // 직책 단독 매치 차단 (박사/교수/대표 등)
     const last = matched[matched.length - 1]!;
-    if ('을를이가은는의에께와과로된함됨'.includes(last)) continue;
+    if ('을를이가은는의에께와과로된함됨할될한'.includes(last)) continue;
     out.push({
       start: m.index,
       end: m.index + matched.length,
@@ -1035,7 +1035,7 @@ export function detectContextualName(text: string): PIISpan[] {
     if (inNameBareStoplist(matched)) continue;
     if (TITLE_SET.has(matched)) continue;
     const last = matched[matched.length - 1]!;
-    if ('을를이가은는의에께와과로된함됨'.includes(last)) continue;
+    if ('을를이가은는의에께와과로된함됨할될한'.includes(last)) continue;
     // 4자 끝이 조사·접미사(도/만/씨/님)면 실제 이름은 3자 — NAME_BARE에 양보. "김상철도"·"박지영님" 등.
     if ('도만씨님'.includes(last)) continue;
     out.push({
@@ -1054,7 +1054,7 @@ export function detectContextualName(text: string): PIISpan[] {
     if (inNameBareStoplist(matched)) continue;
     if (TITLE_SET.has(matched)) continue;
     const last = matched[matched.length - 1]!;
-    if ('을를이가은는의에께와과로된함됨'.includes(last)) continue;
+    if ('을를이가은는의에께와과로된함됨할될한'.includes(last)) continue;
     const tentative = isHomonymNameCandidate(matched);
     out.push({
       start: m.index,
@@ -1143,7 +1143,7 @@ export function detectGeneralName(text: string): PIISpan[] {
     if (inNameBareStoplist(matched)) continue;
     if (TITLE_SET.has(matched)) continue;
     const last = matched[matched.length - 1]!;
-    if ('을를이가은는의에께와과로된함됨'.includes(last)) continue;
+    if ('을를이가은는의에께와과로된함됨할될한'.includes(last)) continue;
     const tentative = isHomonymNameCandidate(matched);
     out.push({
       start: m.index,

@@ -483,6 +483,50 @@ describe('detectKoreanPII', () => {
     }
   });
 
+  it('v1.5.9: 관형 어미(한)·미래 어미(될·할)로 끝나는 한자어 합성이 person_name 오탐 안 함', () => {
+    // 회귀 근거: 사용자 보고 — "정통한·오인될" 같은 "성씨+한자 어간+한국어 어미" 합성이
+    // NAME_BARE FP. v1.5.7의 '된/함/됨' 차단을 '할·될·한'까지 확장.
+    // 한국 인명 마지막 글자가 이 셋일 확률은 사실상 0이라 recall 안전.
+    const cases = [
+      '정통한 분석가입니다',
+      '오인될 소지가 있다',
+      '복잡한 사안이 많다',
+      '필요한 절차를 거친다',
+      '검토할 안건이 쌓였다',
+      '진행할 예정이다',
+      '확인할 자료가 있다',
+      '다양한 의견을 모은다',
+    ];
+    const blocked = ['정통한', '오인될', '복잡한', '필요한', '검토할', '진행할', '확인할', '다양한'];
+    for (const text of cases) {
+      const spans = detectKoreanPII(text);
+      const names = spans
+        .filter((s) => s.category === 'person_name')
+        .map((s) => s.text);
+      for (const word of blocked) {
+        expect(names, `case "${text}" should not contain "${word}"`).not.toContain(word);
+      }
+    }
+  });
+
+  it('v1.5.9: 어미 차단 확장이 진짜 인명 recall은 깨지 않는다', () => {
+    // 한국 이름 마지막 글자가 '할·될·한'일 확률 거의 0. sanity check.
+    const cases: Array<[string, string]> = [
+      ['김민수 팀장님께', '김민수'],
+      ['박지영 담당', '박지영'],
+      ['전우치 인물', '전우치'],
+      ['조성도 회원', '조성도'],
+      ['홍길동은 어디', '홍길동'],
+      ['이순신이라고', '이순신'],
+    ];
+    for (const [text, expectedName] of cases) {
+      const names = detectKoreanPII(text)
+        .filter((s) => s.category === 'person_name')
+        .map((s) => s.text);
+      expect(names, `case "${text}"`).toContain(expectedName);
+    }
+  });
+
   it('detectContextualName: 실제 인명 3자 매칭 (이의헌/김난일/김강석)', () => {
     for (const text of ['이의헌 외 6인', '김난일 비상임', '대표 김강석']) {
       const names = detectContextualName(text).filter((s) => s.category === 'person_name');
