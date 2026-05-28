@@ -1253,7 +1253,7 @@ export function detectKoreanPII(text: string): PIISpan[] {
     ...detectAddress(text),
     ...generalNames,
   ];
-  return dedupe(raw).map((m) => ({
+  const merged = dedupe(raw).map((m) => ({
     start: m.start,
     end: m.end,
     text: m.text,
@@ -1262,4 +1262,56 @@ export function detectKoreanPII(text: string): PIISpan[] {
     source: 'regex' as const,
     ...(m.tentative ? { tentative: true } : {}),
   }));
+  return promoteByAdjacentPII(merged, text);
+}
+
+/**
+ * v1.6.1: 인접 PII 컨텍스트 promote.
+ *
+ * 같은 라인(개행 사이)에 다른 카테고리 PII가 있으면 tentative person_name 매치의
+ * tentative 플래그를 제거 — "이름 + 연락처/식별번호" 명함·후원자 패턴 보존.
+ *
+ * 동기: v1.6.0에서 자연 본문 NAME_BARE를 모두 tentative로 만들었더니, 짧은 명함식
+ * 본문("조성도 010-XXXX-XXXX")에서 NER이 호칭/조사 없는 짧은 인명을 자주 miss해
+ * 진짜 인명이 drop. 이 패턴은 사용자 사용 빈도가 매우 높은 시나리오라 보존 필요.
+ *
+ * 휴리스틱: 같은 라인 안 mobile/landline/email/rrn/foreigner/card/account/passport/
+ * driver_license/corporate_reg/business_reg 매치가 1개 이상이면 인명 신뢰도 ↑.
+ * 일반어가 같은 라인에서 전화번호와 함께 등장할 확률은 낮음(광고 카피 정도).
+ *
+ * 적용 범위: tentative=true인 person_name만. 다른 카테고리는 영향 없음.
+ */
+const PII_CONTEXT_CATEGORIES: ReadonlySet<PIICategory> = new Set<PIICategory>([
+  'mobile',
+  'landline',
+  'email',
+  'rrn',
+  'foreign_registration',
+  'card',
+  'account',
+  'passport',
+  'driver_license',
+  'corporate_registration',
+  'business_number',
+]);
+
+function promoteByAdjacentPII(spans: PIISpan[], text: string): PIISpan[] {
+  return spans.map((s) => {
+    if (s.category !== 'person_name' || !s.tentative) return s;
+    // 같은 라인 범위 계산.
+    const lineStart = text.lastIndexOf('\n', s.start - 1) + 1;
+    const nextNewline = text.indexOf('\n', s.end);
+    const lineEnd = nextNewline === -1 ? text.length : nextNewline;
+    // 같은 라인 안 다른 PII 카테고리가 있는가?
+    const hasAdjacent = spans.some(
+      (o) =>
+        o !== s &&
+        PII_CONTEXT_CATEGORIES.has(o.category) &&
+        o.start >= lineStart &&
+        o.end <= lineEnd,
+    );
+    if (!hasAdjacent) return s;
+    const { tentative: _t, ...rest } = s;
+    return rest;
+  });
 }

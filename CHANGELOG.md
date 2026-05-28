@@ -5,6 +5,22 @@
 
 ---
 
+## [1.6.1] — 2026-05-28
+
+인접 PII 컨텍스트 promote — "이름 + 연락처" 명함 패턴 보존.
+
+### Fixed
+
+- **짧은 명함식 본문에서 NER이 인명을 miss해 drop되던 문제** — v1.6.0에서 `detectGeneralName`의 NAME_BARE를 전면 tentative로 만든 후, 짧은 본문("성씨+2자 + 전화번호" 패턴)에서 NER이 호칭/조사 없는 짧은 한글 인명을 자주 miss해 진짜 인명이 drop됨. 이 패턴은 사용자 사용 빈도가 가장 높은 시나리오. `detectKoreanPII` 결과 후처리로 `promoteByAdjacentPII` 추가 — 같은 라인(`\n` 사이) 안에 다른 카테고리 PII(mobile/landline/email/rrn/foreign_registration/card/account/passport/driver_license/corporate_registration/business_number) 매치가 있으면 tentative person_name 매치의 tentative 플래그 제거 → 채택. NER 무관하게 인명 보존.
+
+### Architecture
+
+- **휴리스틱 근거** — 한국어에서 일반어 + 전화번호/이메일/주민번호가 같은 라인에 함께 등장하는 경우는 광고 카피 일부에 한정. "이름 + 연락처/식별번호" 라인은 명함·후원자 명단·고객 정보 등에서 압도적. trade-off가 명확히 명함 보존 쪽.
+- **호칭 동반 인명은 영향 없음** — NAME_WITH_TITLE이 매치한 인명은 처음부터 tentative가 아님. promote 후처리는 tentative=true인 매치만 검사.
+- **다른 라인 PII는 promote 신호 아님** — `\n` 경계로 라인 분리. 별개 라인의 PII는 우연 인접일 수 있어 신호로 약함.
+
+---
+
 ## [1.6.0] — 2026-05-28
 
 자연 본문 NAME_BARE 전면 tentative — stoplist/boundary 게임 종료. NER cross-validation으로 컨텍스트 기반 PII 판단 일반화.

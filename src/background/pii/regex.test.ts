@@ -967,3 +967,66 @@ describe('v1.6 자연 본문 NAME_BARE 전면 tentative', () => {
     }
   });
 });
+
+// =============================================================================
+// v1.6.1: 인접 PII 컨텍스트 promote — "이름 + 연락처" 명함 패턴 보존
+// =============================================================================
+
+describe('v1.6.1 인접 PII 컨텍스트 promote', () => {
+  it('같은 라인 안 mobile/landline/email이 있으면 tentative 해제 (명함 패턴)', () => {
+    // 사용자 보고: 짧은 본문 "성씨+2자 + 전화번호" 패턴에서 NER이 인명을 자주 miss해 drop.
+    // 인접 PII는 강한 인명 신호 — tentative 해제로 보존.
+    const cases: Array<[string, string]> = [
+      ['조성도 010-1234-5678', '조성도'],
+      ['김민수 02-1234-5678', '김민수'],
+      ['박지영 user@example.com', '박지영'],
+      ['홍길동 950510-1234567', '홍길동'], // RRN (체크섬 통과 합성)
+    ];
+    for (const [text, name] of cases) {
+      const spans = detectKoreanPII(text).filter(
+        (s) => s.category === 'person_name' && s.text === name,
+      );
+      expect(spans.length, `case "${text}" — 인명 매치 존재`).toBeGreaterThan(0);
+      expect(spans[0]!.tentative, `case "${text}" — tentative 해제`).toBeUndefined();
+    }
+  });
+
+  it('인접 PII 없는 일반 본문 NAME_BARE는 tentative 유지 (NER 책임)', () => {
+    // 호칭/조사/PII 인접 신호가 모두 없는 짧은 본문에서는 tentative 그대로.
+    // (긴 자연 본문은 NER이 컨텍스트로 잡거나 거부)
+    const cases: Array<[string, string]> = [
+      ['신뢰성이 중요하다', '신뢰성'],
+      ['손모양을 그렸다', '손모양'],
+    ];
+    for (const [text, word] of cases) {
+      const span = detectKoreanPII(text)
+        .filter((s) => s.category === 'person_name')
+        .find((s) => s.text === word);
+      if (span) {
+        expect(span.tentative, `case "${text}" — tentative 유지`).toBe(true);
+      }
+    }
+  });
+
+  it('다른 라인의 PII는 promote 신호 아님 (\\n 경계)', () => {
+    // 인접성은 같은 라인 안에서만 — 다른 라인의 PII는 무관.
+    const text = '조성도\n010-1234-5678';
+    const span = detectKoreanPII(text)
+      .filter((s) => s.category === 'person_name')
+      .find((s) => s.text === '조성도');
+    if (span) {
+      expect(span.tentative, '다른 라인 PII는 promote 안 함').toBe(true);
+    }
+  });
+
+  it('호칭 동반 인명은 NAME_WITH_TITLE이 잡아 인접 PII 검사 무관', () => {
+    // "김민수 팀장님 010-1234-5678" — NAME_WITH_TITLE이 직접 채택(tentative 아님)
+    // promote 후처리는 이미 non-tentative인 매치를 건드리지 않음.
+    const text = '김민수 팀장님 010-1234-5678';
+    const span = detectKoreanPII(text)
+      .filter((s) => s.category === 'person_name')
+      .find((s) => s.text === '김민수');
+    expect(span, '호칭 동반 인명 매치').toBeDefined();
+    expect(span!.tentative, 'NAME_WITH_TITLE은 tentative 아님').toBeUndefined();
+  });
+});
