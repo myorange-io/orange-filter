@@ -94,4 +94,74 @@ describe('mergeSpans', () => {
     expect(result.filter((s) => s.source === 'regex')).toHaveLength(2);
     expect(result.filter((s) => s.source === 'model')).toHaveLength(2);
   });
+
+  describe('v1.5.8 tentative (동음이의어) cross-validation', () => {
+    function tentative(start: number, end: number, text: string): PIISpan {
+      return {
+        start,
+        end,
+        text,
+        category: 'person_name',
+        confidence: 0.6,
+        source: 'regex',
+        tentative: true,
+      };
+    }
+
+    test('NER이 confirm 안 하면 잠정 스팬 drop (사용자 호소: 마케팅 프로모션 이미지의)', () => {
+      // "스타벅스 코리아의 마케팅 프로모션 이미지의" 상황 시뮬레이션:
+      // regex가 "이미지"를 NAME_BARE로 잡지만 tentative=true.
+      // NER은 같은 위치에 person_name 스팬을 제공하지 않음 → drop.
+      const regex = [tentative(20, 23, '이미지')];
+      const model: PIISpan[] = []; // NER이 person_name으로 안 잡음
+      expect(mergeSpans(regex, model)).toEqual([]);
+    });
+
+    test('NER이 같은 위치에 충분한 confidence로 confirm 하면 채택, tentative 플래그 제거', () => {
+      const regex = [tentative(10, 13, '이미지')];
+      const model = [span(10, 13, 'person_name', 'model', 0.85, '이미지')];
+      const result = mergeSpans(regex, model);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.source).toBe('regex');
+      expect(result[0]!.tentative).toBeUndefined(); // 플래그 제거
+      expect(result[0]!.text).toBe('이미지');
+    });
+
+    test('NER confidence < 0.7이면 confirm 실패로 잠정 regex는 drop (NER 스팬 자체는 별개 채택)', () => {
+      // 잠정 regex는 NER confidence 0.5에 confirm 실패 → drop.
+      // NER 스팬 자체는 mergeSpans의 기존 흐름으로 채택될 수 있음(낮은 confidence NER 필터링은
+      // ner-filter.ts 책임). 본 테스트는 "regex source 스팬이 결과에서 사라짐"만 검증.
+      const regex = [tentative(10, 13, '이미지')];
+      const model = [span(10, 13, 'person_name', 'model', 0.5, '이미지')];
+      const result = mergeSpans(regex, model);
+      expect(result.filter((s) => s.source === 'regex')).toEqual([]);
+    });
+
+    test('일반(non-tentative) regex 스팬은 NER 영향 없이 유지', () => {
+      const regex = [span(0, 3, 'person_name', 'regex', 0.6, '김민수')];
+      const model: PIISpan[] = []; // NER 없음
+      expect(mergeSpans(regex, model)).toEqual(regex);
+    });
+
+    test('잠정과 일반 regex 스팬 혼재 — 잠정만 cross-validate, 일반은 그대로', () => {
+      const regex = [
+        span(0, 3, 'person_name', 'regex', 0.6, '김민수'), // 일반 — 유지
+        tentative(10, 13, '이미지'), // 잠정 — NER 없으면 drop
+      ];
+      const result = mergeSpans(regex, []);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.text).toBe('김민수');
+    });
+
+    test('NER 미설치 사용자 흐름 — model=[]에서 tentative 모두 drop (옵션 A 동작)', () => {
+      const regex = [
+        tentative(0, 3, '이미지'),
+        tentative(10, 13, '이미지'),
+        span(20, 23, 'person_name', 'regex', 0.6, '김민수'), // 일반은 유지
+      ];
+      const result = mergeSpans(regex, []);
+      expect(result).toHaveLength(1);
+      expect(result[0]!.text).toBe('김민수');
+    });
+  });
 });

@@ -833,3 +833,42 @@ describe('detectAddress — 한국 주소', () => {
     expect(spans.filter((s) => s.category === 'address')).toEqual([]);
   });
 });
+
+// =============================================================================
+// v1.5.8: 동음이의어 후보 tentative 마킹
+// =============================================================================
+
+describe('v1.5.8 동음이의어 인명 후보 — tentative 마킹', () => {
+  it('NAME_BARE가 "이미지"를 잡되 tentative=true로 표시 (사용자 호소 케이스)', () => {
+    // "스타벅스 코리아의 마케팅 프로모션 이미지의" — '이미지'가 NAME_BARE에 매치되나
+    // 동음이의어 후보 set에 있으므로 tentative 플래그가 붙어 NER cross-validation 대상.
+    const text = '스타벅스 코리아의 마케팅 프로모션 이미지의 색감이 좋다';
+    const names = detectKoreanPII(text).filter((s) => s.category === 'person_name');
+    const imageSpan = names.find((s) => s.text === '이미지');
+    expect(imageSpan, '이미지가 NAME_BARE로 매치돼야 함').toBeDefined();
+    expect(imageSpan!.tentative, 'tentative=true 마킹').toBe(true);
+  });
+
+  it('"이미지 씨/팀장/과장" 호칭 컨텍스트는 NAME_WITH_TITLE이 잡고 tentative 아님 (강한 신호)', () => {
+    // 호칭/직책이 붙으면 NAME_WITH_TITLE이 매치 — 동음이의어 후보 set과 무관하게 PII로 확정.
+    // 사용된 직책은 모두 TITLES 배열(regex.ts L293)에 등록된 것 — '대리'는 미등록이라 제외.
+    const cases = ['이미지 씨에게 전했어요', '이미지 팀장님이 보낸 자료', '이미지 과장이 작성'];
+    for (const text of cases) {
+      const names = detectKoreanPII(text).filter((s) => s.category === 'person_name');
+      const span = names.find((s) => s.text === '이미지');
+      expect(span, `case "${text}"`).toBeDefined();
+      expect(span!.tentative, `case "${text}" — 호칭 컨텍스트는 tentative 아님`).toBeUndefined();
+    }
+  });
+
+  it('기존 bundled stoplist 회귀: "오렌지", "주시기"는 여전히 차단 (tentative와 무관)', () => {
+    // bundled NAME_BARE_STOPLIST 단어들 — 동음이의어 처리에 영향받지 않고 그대로 drop.
+    // (remote stoplist는 fetch 기반이라 테스트 환경에 적용 안 됨 — bundled로 검증.)
+    for (const text of ['오렌지 필터를 사용', '주시기 바랍니다']) {
+      const names = detectKoreanPII(text).filter((s) => s.category === 'person_name');
+      for (const blocked of ['오렌지', '주시기']) {
+        expect(names.map((n) => n.text), `case "${text}"`).not.toContain(blocked);
+      }
+    }
+  });
+});

@@ -111,6 +111,33 @@ describe('initRemoteStoplists', () => {
     expect(after.map((s) => s.text)).not.toContain('오피스');
   });
 
+  it('v1.5.8: 원격 name_homonym 단어가 tentative=true로 마킹된다', async () => {
+    // 시나리오: '예시동음' 같은 새 동음이의어 후보를 핫픽스로 추가했다고 가정.
+    // BUNDLED에는 없지만 REMOTE로 들어와도 tentative 마킹이 작동해야 한다.
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        version: '2026-05-28.x',
+        updated: '2026-05-28T00:00:00Z',
+        stoplists: { name_homonym: ['오현우'] }, // '오' surname + 2자, 3자 NAME_BARE 매치 가능
+      }),
+    });
+
+    // 적용 전: tentative 마킹 없음 (REMOTE 비어있음).
+    const before = detectKoreanPII('오현우가 도착했다').filter(
+      (s) => s.category === 'person_name' && s.text === '오현우',
+    );
+    expect(before[0]?.tentative).toBeUndefined();
+
+    await initRemoteStoplists();
+
+    // 적용 후: tentative=true.
+    const after = detectKoreanPII('오현우가 도착했다').filter(
+      (s) => s.category === 'person_name' && s.text === '오현우',
+    );
+    expect(after[0]?.tentative).toBe(true);
+  });
+
   it('fetch 실패 + 캐시 없음 → no-op (번들 default만)', async () => {
     fetchSpy.mockRejectedValue(new Error('network down'));
 

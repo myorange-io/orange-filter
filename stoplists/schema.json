@@ -42,6 +42,11 @@
           "type": "array",
           "items": { "type": "string", "minLength": 2, "maxLength": 40 },
           "description": "ROMAN_NAME_PATTERN(한국 성씨 영문+CamelCase) 차단."
+        },
+        "name_homonym": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1, "maxLength": 8 },
+          "description": "v1.5.8+ 동음이의어 인명 후보(예: '이미지'). NAME_BARE 매치 시 PIISpan.tentative=true 마킹 → mergeSpans 단계에서 NER이 같은 위치를 person_name(confidence ≥ 0.7)으로 confirm 해야 채택. 미확정 시 drop. 호칭/직책이 붙은 경우(NAME_WITH_TITLE)는 영향받지 않음."
         }
       }
     }

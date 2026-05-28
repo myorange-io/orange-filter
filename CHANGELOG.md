@@ -5,6 +5,26 @@
 
 ---
 
+## [1.5.8] — 2026-05-28
+
+동음이의어 인명 후보(예: "이미지") NER cross-validation — 전체 맥락 기반 PII 판단.
+
+### Added
+
+- **동음이의어 후보 잠정 마킹 + NER cross-validation** — 사용자 보고: "스타벅스 코리아의 마케팅 프로모션 이미지의" 안 "이미지"가 `NAME_BARE`("이" 성씨 + "미지" 2자)에 매치되어 person_name으로 잘못 잡히던 문제. 단순 stoplist 차단은 실제 '이미지'라는 이름을 가진 분의 인명을 영구 누락시키므로, 컨텍스트로 판단하도록 변경. (a) `PIISpan.tentative?: boolean` 필드 추가. (b) `HOMONYM_NAME_CANDIDATES` set(BUNDLED + REMOTE) 정의 — `NAME_BARE` 매치 시 후보면 `tentative=true` 마킹. (c) `mergeSpans` cross-validation — 잠정 스팬은 NER이 같은 위치(IoU ≥ 0.5)를 person_name confidence ≥ 0.7로 confirm 해야 채택, 미확정 시 drop. (d) NER 미설치 사용자는 잠정 항상 drop으로 안전 degrade — 일반명사 처리.
+- **`stoplists/remote-stoplist.json`의 `name_homonym` 카테고리** — `schema.json`에 정의 추가. 새 동음이의어 후보(예: 다른 일반명사 동명이인)는 CWS 검수 없이 핫픽스로 추가 가능. v2026-05-28.2부터 '이미지' 포함.
+
+### Architecture
+
+- **`mergeSpans` 우선순위 예외 추가** — 기존: regex 스팬 항상 유지, NER veto 불가. v1.5.8: 잠정(tentative=true) regex 스팬에 한해 NER이 confirm 안 하면 drop. 일반(non-tentative) regex 스팬은 기존대로 항상 유지.
+- **호칭/직책 컨텍스트는 영향 없음** — `NAME_WITH_TITLE`("이미지 씨/팀장/과장/님" 등)은 동음이의어 set과 무관하게 강한 신호로 계속 PII 채택. 호칭 동반 인명 케이스 안전망 유지.
+
+### Limitations (정직한 한계)
+
+- **호칭 없는 단독 등장 진짜 인명 ("이미지가 어제 그랬어")** — AEGIS mBERT NER이 컨텍스트로 person_name 강하게 라벨링하면 채택, 아니면 drop. 호칭 동반보다 NER recall이 낮은 영역으로, 이 케이스가 자주 발생하면 추후 룰 기반 단서 검사를 보강 검토.
+
+---
+
 ## [1.5.7.1] — 2026-05-26
 
 확장 이름에서 공백 제거 — "오렌지 필터" → "오렌지필터".

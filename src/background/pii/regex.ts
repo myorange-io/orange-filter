@@ -454,6 +454,35 @@ const NAME_BARE_STOPLIST_BUNDLED: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * 동음이의어 인명 후보(v1.5.8+) — 일반명사 빈도가 압도적이지만 실제 동명이인이 존재하는 단어.
+ *
+ * 동기: 사용자 보고 — "마케팅 프로모션 이미지의"의 "이미지"가 NAME_BARE("이"+"미지")로 매치되어
+ * person_name FP. 단순 stoplist 차단은 실제 '이미지'라는 이름을 가진 분의 인명을 영구 누락시킴.
+ *
+ * 처리 방식 (B+C 하이브리드):
+ *   1. regex가 NAME_BARE로 후보 단어를 잡으면 PIISpan.tentative=true로 마킹.
+ *   2. mergeSpans 단계에서 NER이 같은 위치(IoU ≥ 0.5)에 person_name 스팬을
+ *      confidence ≥ HOMONYM_NER_CONFIRM_THRESHOLD로 제공해야 채택.
+ *   3. NER이 confirm 안 하면(또는 NER 모델 미설치) drop → 일반명사 처리.
+ *   4. 호칭/직책이 붙은 경우(NAME_WITH_TITLE 매칭)는 영향받지 않음 — 강한 신호로 그대로 PII.
+ *
+ * NAME_BARE_STOPLIST와의 차이: stoplist는 "이건 무조건 일반어"라는 단정,
+ * homonym은 "컨텍스트로 판단해야 함"이라는 유보. 새 단어 발견 시 어느 쪽에 넣을지는
+ * (a) 실제 인명으로 사용될 가능성 + (b) NER이 컨텍스트로 구별할 수 있는지에 따라 결정.
+ */
+const HOMONYM_NAME_CANDIDATES_BUNDLED: ReadonlySet<string> = new Set([
+  '이미지', // 일반명사: 사진/그래픽/심상. 인명: 실제 동명이인 존재.
+]);
+
+// REMOTE는 stoplists/remote-stoplist.json의 `name_homonym` 배열에서 fetch.
+// 사용자 확장이 다음 시작(또는 24h cache 만료) 시 자동 반영 — CWS 검수 불필요.
+let HOMONYM_NAME_CANDIDATES_REMOTE: ReadonlySet<string> = new Set();
+
+function isHomonymNameCandidate(word: string): boolean {
+  return HOMONYM_NAME_CANDIDATES_BUNDLED.has(word) || HOMONYM_NAME_CANDIDATES_REMOTE.has(word);
+}
+
+/**
  * NAME_WITH_TITLE 전용 stoplist — 부서·기능명 + 조직 단위 직책 합성어.
  *
  * 동기: "전략기획본부장"에서 정규식이 "전(성)+략기획(3자)+본부장(직책 lookahead)"으로 매치해
@@ -547,6 +576,8 @@ export interface RemoteStoplistPayload {
   readonly name_4char?: ReadonlyArray<string>;
   readonly dept_title?: ReadonlyArray<string>;
   readonly roman_name?: ReadonlyArray<string>;
+  /** v1.5.8+ 동음이의어 인명 후보 (NER cross-validation 대상). */
+  readonly name_homonym?: ReadonlyArray<string>;
 }
 
 /**
@@ -562,6 +593,7 @@ export function applyRemoteStoplists(payload: RemoteStoplistPayload): void {
   NAME_4CHAR_STOPLIST_REMOTE = new Set(payload.name_4char ?? []);
   DEPT_TITLE_STOPLIST_REMOTE = new Set(payload.dept_title ?? []);
   ROMAN_NAME_STOPLIST_REMOTE = new Set(payload.roman_name ?? []);
+  HOMONYM_NAME_CANDIDATES_REMOTE = new Set(payload.name_homonym ?? []);
 }
 
 /**
@@ -581,6 +613,11 @@ interface RawMatch {
   text: string;
   category: PIICategory;
   confidence: number;
+  /**
+   * 동음이의어 후보 NAME_BARE 매치(v1.5.8+). dedupe·PIISpan 변환 시 보존되어
+   * mergeSpans 단계의 NER cross-validation에 사용된다. 비-person_name 카테고리는 미사용.
+   */
+  tentative?: boolean;
 }
 
 function digitsOnly(s: string): string {
@@ -1018,6 +1055,7 @@ export function detectContextualName(text: string): PIISpan[] {
     if (TITLE_SET.has(matched)) continue;
     const last = matched[matched.length - 1]!;
     if ('을를이가은는의에께와과로된함됨'.includes(last)) continue;
+    const tentative = isHomonymNameCandidate(matched);
     out.push({
       start: m.index,
       end: m.index + matched.length,
@@ -1025,6 +1063,7 @@ export function detectContextualName(text: string): PIISpan[] {
       category: 'person_name',
       confidence: 0.6,
       source: 'regex',
+      ...(tentative ? { tentative: true } : {}),
     });
   }
   // 직책/존칭 동반 — 높은 confidence
@@ -1073,6 +1112,7 @@ export function detectContextualName(text: string): PIISpan[] {
     text: s.text,
     category: s.category,
     confidence: s.confidence,
+    ...(s.tentative ? { tentative: true } : {}),
   }));
   return dedupe(raw).map((m) => ({
     start: m.start,
@@ -1081,6 +1121,7 @@ export function detectContextualName(text: string): PIISpan[] {
     category: m.category,
     confidence: m.confidence,
     source: 'regex' as const,
+    ...(m.tentative ? { tentative: true } : {}),
   }));
 }
 
@@ -1103,6 +1144,7 @@ export function detectGeneralName(text: string): PIISpan[] {
     if (TITLE_SET.has(matched)) continue;
     const last = matched[matched.length - 1]!;
     if ('을를이가은는의에께와과로된함됨'.includes(last)) continue;
+    const tentative = isHomonymNameCandidate(matched);
     out.push({
       start: m.index,
       end: m.index + matched.length,
@@ -1110,6 +1152,7 @@ export function detectGeneralName(text: string): PIISpan[] {
       category: 'person_name',
       confidence: 0.6,
       source: 'regex',
+      ...(tentative ? { tentative: true } : {}),
     });
   }
   for (const m of text.matchAll(NAME_WITH_TITLE)) {
@@ -1153,6 +1196,7 @@ export function detectGeneralName(text: string): PIISpan[] {
     text: s.text,
     category: s.category,
     confidence: s.confidence,
+    ...(s.tentative ? { tentative: true } : {}),
   }));
   return dedupe(raw).map((m) => ({
     start: m.start,
@@ -1161,6 +1205,7 @@ export function detectGeneralName(text: string): PIISpan[] {
     category: m.category,
     confidence: m.confidence,
     source: 'regex' as const,
+    ...(m.tentative ? { tentative: true } : {}),
   }));
 }
 
@@ -1179,6 +1224,7 @@ export function detectKoreanPII(text: string): PIISpan[] {
     text: s.text,
     category: s.category,
     confidence: s.confidence,
+    ...(s.tentative ? { tentative: true } : {}),
   }));
   const raw: RawMatch[] = [
     ...detectRRN(text),
@@ -1206,5 +1252,6 @@ export function detectKoreanPII(text: string): PIISpan[] {
     category: m.category,
     confidence: m.confidence,
     source: 'regex' as const,
+    ...(m.tentative ? { tentative: true } : {}),
   }));
 }
