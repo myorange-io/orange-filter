@@ -395,6 +395,17 @@ describe('detectKoreanPII', () => {
     }
   });
 
+  it('v1.6.2: 브랜드 핵심어 "임팩트"는 person_name으로 안 잡힌다 (실제 인명 조성도는 잡힘)', () => {
+    // 회귀 근거: 사용자 보고 — "오렌지 임팩트를 창출하는 임팩트 - 조성도 010-1234-5678"에서
+    // "임"(KOREAN_SURNAMES) + "팩트" 2자가 NAME_BARE에 매치되어 "임팩트"가 person_name FP.
+    const text = '오렌지 임팩트를 창출하는 임팩트 - 조성도 010-1234-5678';
+    const names = detectKoreanPII(text)
+      .filter((s) => s.category === 'person_name')
+      .map((s) => s.text);
+    expect(names).not.toContain('임팩트');
+    expect(names).toContain('조성도');
+  });
+
   it('v1.5.6: "안" 성씨 합성 일반어가 person_name으로 안 잡힌다 (안에서/안내자/안전성)', () => {
     // 회귀 근거: 사용자 보고 — "PC 안에서 개인정보를 가려냅니다" 안 "안에서"가
     // "안(성)+에서(2자)"로 NAME_BARE 매치되어 person_name FP.
