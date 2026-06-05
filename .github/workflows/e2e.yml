@@ -34,8 +34,9 @@ jobs:
           npm run dev > /tmp/vite.log 2>&1 &
           # vite ready 대기 — 90초 한도. 첫 회 CI는 predev에서 tesseract traineddata 5.5MB 다운로드 +
           # vite 자체 부팅으로 30~60초 걸릴 수 있음. 캐싱 적용 후엔 5~10s 안에 끝남.
+          # CRXJS는 루트 / 에 index.html을 서빙하지 않음(404) — @vite/client로 liveness 확인.
           for i in $(seq 1 90); do
-            if curl -sf http://localhost:5173 > /dev/null; then
+            if curl -sf http://localhost:5173/@vite/client > /dev/null; then
               echo "vite ready after ${i}s"
               exit 0
             fi
