@@ -1,7 +1,8 @@
 name: e2e
 
 # Playwright e2e — 사이드패널 smoke + paste 모달 closed Shadow DOM 격리.
-# vite dev 환경 위에서 chromium으로 실행. NER offscreen 경로는 별도(수동/야간 cron).
+# vite dev 환경(headless chromium) 위에서 실행. dev 서버 페이지만 띄우므로 확장 로드/디스플레이 불필요.
+# 확장 로드(background SW + offscreen + NER) 경로는 production 빌드가 필요해 extension-e2e.yml(야간 cron)이 담당.
 on:
   push:
     branches: [main]
@@ -46,8 +47,10 @@ jobs:
           tail -50 /tmp/vite.log
           exit 1
 
-      - name: Run e2e
-        run: npm run e2e
+      - name: Run e2e (smoke)
+        # paste-modal/screenshots smoke만 dev 서버 위에서 실행. 확장을 로드하지 않으므로 xvfb 불필요.
+        # extension.spec.ts(확장 로드 + offscreen/NER)는 production 빌드가 필요해 extension-e2e.yml이 담당.
+        run: npx playwright test playwright/paste-modal.spec.ts playwright/screenshots.spec.ts --reporter=list
 
       - name: Upload trace on failure
         if: failure()
