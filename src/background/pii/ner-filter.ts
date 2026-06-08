@@ -58,18 +58,47 @@ function isShortAsciiToken(text: string): boolean {
 }
 
 /**
+ * CSS 16진 색상값 — 카테고리 무관 false positive 차단.
+ *
+ * 동기 (사용자 보고): 이미지 생성 프롬프트의 색상값 `#FF6F1F`·`#FFF2E7`·`#0075FF`를
+ * NER이 address(주소)·기타 카테고리로 잘못 라벨링. 색상 코드는 어떤 카테고리로도 PII가
+ * 아니므로 person_name 한정이 아닌 전 카테고리에서 drop.
+ *
+ * 매칭: 선택적 `#` + 16진 3/4/6/8자리 (CSS #RGB·#RGBA·#RRGGBB·#RRGGBBAA).
+ * NER 토크나이저가 `#`를 떼고 'FF6F1F'만 반환하는 케이스도 잡도록 `#` optional.
+ *
+ * over-suppression 차단:
+ *  - 순수 숫자('123456')는 실제 식별번호일 수 있어 제외 — A–F 글자 1개 이상 요구.
+ *  - a–f 글자로만 이루어진 영어 단어('Facade'·'Decade'·'Bee')가 길이만으로 색상으로
+ *    오인되지 않도록, `#` 접두 또는 숫자 1개 이상을 추가 요구. 실제 색상 코드는 거의 항상
+ *    둘 중 하나를 만족.
+ */
+function isHexColor(text: string): boolean {
+  const t = text.trim();
+  if (!/^#?[0-9A-Fa-f]+$/.test(t)) return false;
+  const hasHash = t.startsWith('#');
+  const hex = hasHash ? t.slice(1) : t;
+  if (![3, 4, 6, 8].includes(hex.length)) return false;
+  if (!/[A-Fa-f]/.test(hex)) return false; // 순수 숫자 제외
+  return hasHash || /[0-9]/.test(hex); // 영어 단어(글자만) 제외
+}
+
+/**
  * NER 결과 spans에서 person_name false positive 후보를 필터.
  *
  * 필터 규칙:
  *   1. 영문 stopword 블랙리스트(대소문자 무관) → drop
  *   2. ASCII 알파벳만 + 길이 ≤ 3 + confidence < 0.85 → drop (예: 'do', 'is')
  *   3. 한국어 학문 분야·일반어 stoplist (심리학·경제학·…) → drop
+ *   4. CSS 16진 색상값(#FF6F1F 등) → drop (전 카테고리)
  *
- * person_name 외 카테고리는 통과. 정규식 결과는 호출자가 별도 처리.
+ * person_name 외 카테고리는 (4)를 제외하고 통과. 정규식 결과는 호출자가 별도 처리.
  */
 export function filterNerFalsePositives(spans: ReadonlyArray<PIISpan>): PIISpan[] {
   const out: PIISpan[] = [];
   for (const s of spans) {
+    // 색상 코드는 어떤 카테고리로 라벨링되든 PII 아님 — 카테고리 분기 전에 차단.
+    if (isHexColor(s.text)) continue;
     if (s.category !== 'person_name') {
       out.push(s);
       continue;
