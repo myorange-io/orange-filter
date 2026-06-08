@@ -98,4 +98,29 @@ describe('filterNerFalsePositives', () => {
     ]);
     expect(out).toHaveLength(2);
   });
+
+  // CSS 16진 색상값 — 이미지 생성 프롬프트의 #FF6F1F 등이 address/기타로 오탐되던 회귀.
+  it('CSS 16진 색상값은 카테고리 무관 차단 (#FF6F1F·#FFF2E7·#0075FF)', () => {
+    const out = filterNerFalsePositives([
+      span('#FF6F1F', 'address', 0.9),
+      span('#FFF2E7', 'address', 0.9),
+      span('#0075FF', 'address', 0.9),
+      span('FF6F1F', 'person_name', 0.9), // NER이 # 떼고 반환하는 케이스
+      span('#fff', 'address', 0.9), // 3자리 단축형
+      span('#FF6F1FFF', 'address', 0.9), // 8자리 RRGGBBAA
+    ]);
+    expect(out).toHaveLength(0);
+  });
+
+  it('색상값 차단이 실제 식별번호·영어 단어·이름을 over-suppress하지 않음', () => {
+    const out = filterNerFalsePositives([
+      span('123456', 'postal_code', 0.9), // 순수 숫자 → 색상 아님, 보존
+      span('Facade', 'person_name', 0.9), // a–f 글자만(숫자·# 없음) → 영어 단어로 간주, 보존
+      span('Decade', 'person_name', 0.9), // 동일
+      span('조성도', 'person_name', 0.7),
+    ]);
+    expect(out.map((s) => s.text).sort()).toEqual(
+      ['123456', 'Facade', 'Decade', '조성도'].sort(),
+    );
+  });
 });
