@@ -108,6 +108,8 @@ describe('filterNerFalsePositives', () => {
       span('FF6F1F', 'person_name', 0.9), // NER이 # 떼고 반환하는 케이스
       span('#fff', 'address', 0.9), // 3자리 단축형
       span('#FF6F1FFF', 'address', 0.9), // 8자리 RRGGBBAA
+      span('#000000', 'address', 0.9), // 순수 숫자 색상 — # 있으면 식별번호 아닌 색상
+      span('#999999', 'address', 0.9), // 동일
     ]);
     expect(out).toHaveLength(0);
   });
