@@ -12,6 +12,7 @@ import type { Segment } from './parsers/types';
 import { maskText, spanKey } from '@/background/pii/mask';
 import { detectContextualName } from '@/background/pii/regex';
 import { findInlineLabels } from '@/background/pii/header-hints';
+import { dedupeSpans } from '@/background/pii/merge';
 import { requestDetect } from '@/shared/lib/detect-client';
 import type { MaskMode, PIICategory, PIISpan } from '@/shared/types';
 
@@ -77,7 +78,10 @@ export async function detectSegments(
       source: 'regex',
     }));
     const contextual = seg.nameHintOnly ? detectContextualName(seg.text) : [];
-    const all = [...detected, ...inline, ...contextual];
+    // detected(정규식+NER 병합 결과)·인라인 cue·이름 힌트는 서로를 모른 채 발화하므로
+    // 같은 엔티티가 중복 등록된다("여권번호 M12345678" → 정규식 1 + cue 1).
+    // dedupeSpans가 동일 키 중복과 AUTH 스팬 안의 조각을 정리한다.
+    const all = dedupeSpans([...detected, ...inline, ...contextual]);
     spansBySegment.set(seg.id, all);
     totalSpans += all.length;
     options.onProgress?.(i + 1, segments.length);

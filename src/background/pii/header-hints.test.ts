@@ -185,4 +185,87 @@ describe('findInlineLabels', () => {
     const matches = findInlineLabels(text);
     expect(matches).toHaveLength(0);
   });
+
+  // ---------------------------------------------------------------------------
+  // 값 경계 — 같은 줄에 라벨이 여럿일 때 (구분자 없이 공백만으로 이어지는 경우)
+  // ---------------------------------------------------------------------------
+
+  it('한 줄에 라벨이 여럿이면 다음 라벨 직전까지가 값', () => {
+    const text = '성명: 김민수 연락처: 010-1234-5678';
+    const matches = findInlineLabels(text);
+    expect(matches.map((m) => m.category)).toEqual(['person_name', 'mobile']);
+    expect(text.slice(matches[0]!.valueStart, matches[0]!.valueEnd)).toBe('김민수');
+    expect(text.slice(matches[1]!.valueStart, matches[1]!.valueEnd)).toBe('010-1234-5678');
+  });
+
+  it('사전에 없는 라벨도 앞 값의 경계 역할은 한다', () => {
+    const text = '성명: 김민수 메모: 중요한 내용';
+    const matches = findInlineLabels(text);
+    expect(matches).toHaveLength(1);
+    expect(text.slice(matches[0]!.valueStart, matches[0]!.valueEnd)).toBe('김민수');
+  });
+
+  it('값 우측 공백은 스팬에 포함하지 않는다', () => {
+    const text = '성명: 김민수   \n이메일: a@b.com';
+    const matches = findInlineLabels(text);
+    expect(text.slice(matches[0]!.valueStart, matches[0]!.valueEnd)).toBe('김민수');
+  });
+
+  it('`#`·`№` 구분자도 인식', () => {
+    const text = '여권번호# M12345678\n계좌№1002-100-100100';
+    const matches = findInlineLabels(text);
+    expect(matches.map((m) => m.category)).toEqual(['passport', 'account']);
+    expect(text.slice(matches[0]!.valueStart, matches[0]!.valueEnd)).toBe('M12345678');
+    expect(text.slice(matches[1]!.valueStart, matches[1]!.valueEnd)).toBe('1002-100-100100');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Tier B — 공백만으로 구분된 cue. ID 계열 + 숫자 포함 값에만 발화.
+  // ---------------------------------------------------------------------------
+
+  it('공백 구분자 + ID 카테고리 → 매치 (콜론 없는 양식)', () => {
+    const text = '여권번호 M12345678';
+    const matches = findInlineLabels(text);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.category).toBe('passport');
+    expect(text.slice(matches[0]!.valueStart, matches[0]!.valueEnd)).toBe('M12345678');
+  });
+
+  it('공백 구분자 값은 한글 앞에서 끊긴다', () => {
+    const text = '사업자등록번호 123-45-67890 (주)오렌지';
+    const matches = findInlineLabels(text);
+    expect(matches).toHaveLength(1);
+    expect(text.slice(matches[0]!.valueStart, matches[0]!.valueEnd)).toBe('123-45-67890');
+  });
+
+  it('공백 구분자는 ID 계열이 아닌 카테고리에는 발화하지 않음', () => {
+    // "대표 김철수" — person_name은 Tier B 대상이 아니다 (일반 문장과 구분 불가).
+    expect(findInlineLabels('대표 김철수가 인사말을 했다')).toHaveLength(0);
+    expect(findInlineLabels('주소 서울시 강남구')).toHaveLength(0);
+  });
+
+  it('공백 구분자 + 숫자 없는 값은 오탐으로 차단', () => {
+    // "카드 3장"·"면허 2급"은 값 형태(≥4자 영숫자)에서 탈락,
+    // "카드 abcd"는 숫자 없음에서 탈락.
+    expect(findInlineLabels('카드 3장 발급')).toHaveLength(0);
+    expect(findInlineLabels('면허 2급 소지')).toHaveLength(0);
+    expect(findInlineLabels('카드 abcd')).toHaveLength(0);
+  });
+
+  it('credential은 숫자 없이도 단일 토큰이면 매치', () => {
+    const text = '비밀번호 hunterpass';
+    const matches = findInlineLabels(text);
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.category).toBe('credential');
+    expect(text.slice(matches[0]!.valueStart, matches[0]!.valueEnd)).toBe('hunterpass');
+  });
+
+  it('Tier A 값 안에서 Tier B가 재발화하지 않음', () => {
+    // "계좌: 우리 1002-100-100100" — Tier A가 값 전체를 claim했으므로
+    // 그 안의 "우리 1002-..."를 Tier B가 다시 잡으면 중복 스팬이 된다.
+    const text = '계좌: 우리 1002-100-100100';
+    const matches = findInlineLabels(text);
+    expect(matches).toHaveLength(1);
+    expect(text.slice(matches[0]!.valueStart, matches[0]!.valueEnd)).toBe('우리 1002-100-100100');
+  });
 });

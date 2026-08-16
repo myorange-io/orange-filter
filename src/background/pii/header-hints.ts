@@ -171,13 +171,121 @@ export function detectHeaderRow(
 }
 
 // =============================================================================
-// 인라인 라벨 패턴: "성명: 조성도", "연락처 010-...", "이메일=foo@bar"
+// 인라인 라벨(cue) 패턴: "성명: 조성도", "여권번호 M12345678", "이메일=foo@bar"
 // 표 구조 없이 한 줄 또는 한 단락에 라벨/값이 같이 있는 경우.
+//
+// 2티어 cue 구조 — LiquidAI PII-Detector의 `context_cued.py` 설계를 참고했다.
+// 그쪽 문제 정의가 우리와 같다: 여권·면허·계좌처럼 **형태가 임의인 ID**는 학습 가능한
+// shape가 없어 NER recall이 사실상 0이지만, 실제 문서에서는 거의 항상 필드 라벨 뒤에 온다.
+// 라벨이 매치를 게이트하므로 정밀도가 높다.
+//
+//   Tier A — 명시 구분자(`:` `：` `＝` `=` `#` `№`). 사전의 모든 카테고리 허용.
+//            값은 다음 cue 직전 또는 줄바꿈/탭/`|`까지.
+//   Tier B — 공백만으로 구분("여권번호 M12345678"). 오탐 위험이 커서 두 겹으로 조인다:
+//            (1) 카테고리를 임의 형식 ID 계열로 한정(ID_CUE_CATEGORIES),
+//            (2) 값이 영숫자로 시작하고 숫자를 포함해야 채택.
+//            덕분에 "카드 3장"·"면허 2급"·"주소 서울시"는 걸리지 않는다.
 // =============================================================================
 
-// 라벨 + 구분자(: ＝ = 또는 공백 1개 이상) + 값.
-// 라벨은 짧은(≤ 8자) 한국어/영문 토큰.
-const INLINE_LABEL_RE = /([가-힣A-Za-z·.\-_/ ]{1,12})\s*[::＝=]\s*/g;
+/**
+ * Tier B(공백 구분자)에서만 허용하는 카테고리 — 임의 형식 ID.
+ *
+ * 이 목록에 person_name·address·organization을 넣지 않는 것이 핵심이다. 그쪽은
+ * 값이 자연어라 공백 구분자만으로는 "라벨 + 값"과 평범한 문장을 구분할 수 없다
+ * ("대표 김철수가 말하길…"). 명시 구분자가 있는 Tier A에서만 다룬다.
+ */
+const ID_CUE_CATEGORIES: ReadonlySet<PIICategory> = new Set<PIICategory>([
+  'rrn',
+  'foreign_registration',
+  'passport',
+  'driver_license',
+  'business_number',
+  'corporate_registration',
+  'account',
+  'card',
+  'credential',
+]);
+
+// 라벨 후보 문자 — 한글/영문/일부 기호. 숫자는 값과 구분하기 위해 제외.
+// Tier A는 다어절 영문 라벨("Account Number:")을 위해 공백을 포함하고,
+// Tier B는 공백이 구분자 역할을 하므로 제외한다.
+const LABEL_A_RE = /([가-힣A-Za-z·.\-_/ ]{1,16})[ \t]*[::＝=#№][ \t]*/g;
+const LABEL_B_RE = /([가-힣A-Za-z·.\-_/]{2,16})[ \t]+(?=[A-Za-z0-9])/g;
+
+// Tier B 값의 형태 — 영숫자로 시작·끝나고 내부에 공백/하이픈/점/슬래시 허용.
+// 한글을 포함하지 않으므로 "M12345678 발급" → "M12345678"에서 정확히 끊긴다.
+const ID_VALUE_RE = /^[A-Za-z0-9][A-Za-z0-9 .\-/]*[A-Za-z0-9]/;
+// credential은 숫자 없이도 성립("암호 hunterpass") → 공백 없는 단일 토큰으로 한정.
+const CRED_VALUE_RE = /^\S{4,64}/;
+
+/** 값 영역을 끊는 구조 문자 — 줄바꿈/탭/셀 구분자. */
+function isValueBreak(ch: string): boolean {
+  return ch === '\n' || ch === '\r' || ch === '\t' || ch === '|';
+}
+
+/**
+ * 캡처된 라벨 후보에서 사전과 매치되는 **가장 긴 접미사**를 찾는다.
+ *
+ * 라벨 캡처가 앞선 값을 삼키는 문제를 보정한다. "성명: 김민수 연락처: 010-…"의 두 번째
+ * 캡처는 greedy 매칭 탓에 "김민수 연락처"가 되는데, 사전에는 없으므로 예전 구현은 이
+ * 라벨을 통째로 놓쳤다(= 한 줄에 라벨이 여러 개면 두 번째부터 미검출). 접미사를 긴
+ * 것부터 훑으면 "연락처"에서 매치된다.
+ */
+function resolveLabelSuffix(
+  raw: string,
+): { label: string; offset: number; category: PIICategory } | undefined {
+  const trimmed = raw.replace(/\s+$/, '');
+  if (trimmed.length === 0) return undefined;
+  // 후보 시작 위치: 0(전체) + 각 공백 직후. 앞쪽부터 = 긴 접미사부터.
+  const starts: number[] = [0];
+  for (let i = 0; i < trimmed.length - 1; i++) {
+    if (/\s/.test(trimmed[i]!) && !/\s/.test(trimmed[i + 1]!)) starts.push(i + 1);
+  }
+  for (const s of starts) {
+    const cand = trimmed.slice(s);
+    const cat = categoryForHeader(cand);
+    if (cat) return { label: cand, offset: s, category: cat };
+  }
+  return undefined;
+}
+
+/** 사전 미매치 캡처에서 라벨로 추정되는 마지막 어절의 시작 offset. */
+function lastTokenOffset(raw: string): number {
+  const trimmed = raw.replace(/\s+$/, '');
+  const idx = trimmed.search(/\S+$/);
+  return idx < 0 ? 0 : idx;
+}
+
+interface Cue {
+  /** 라벨이 시작하는 위치 (앞 값의 경계로 쓰인다) */
+  cueStart: number;
+  /** 값이 시작하는 위치 */
+  valueStart: number;
+  /** 사전 매치 결과. 미매치면 undefined — 경계 역할만 한다. */
+  resolved?: { label: string; category: PIICategory };
+  tier: 'A' | 'B';
+}
+
+/** 한 정규식으로 cue 목록 수집. 사전 미매치 cue도 경계 계산을 위해 담는다. */
+function collectCues(text: string, re: RegExp, tier: 'A' | 'B'): Cue[] {
+  const out: Cue[] = [];
+  re.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const raw = m[1] ?? '';
+    const valueStart = m.index + m[0].length;
+    const hit = resolveLabelSuffix(raw);
+    out.push({
+      cueStart: m.index + (hit ? hit.offset : lastTokenOffset(raw)),
+      valueStart,
+      resolved: hit ? { label: hit.label, category: hit.category } : undefined,
+      tier,
+    });
+    // 빈 매치 방어 (Tier B의 lookahead는 폭이 0인 구간을 만들 수 있다)
+    if (re.lastIndex === m.index) re.lastIndex++;
+  }
+  return out;
+}
 
 export interface InlineLabelMatch {
   /** 라벨 텍스트 (사전 매치된 원형) */
@@ -189,32 +297,74 @@ export interface InlineLabelMatch {
 }
 
 /**
- * 텍스트에서 "라벨: " 패턴을 찾고, 라벨이 사전과 매치되면 값의 시작 위치를 반환.
- * 같은 줄 내 다음 라벨 직전까지(또는 줄바꿈/탭/`|`까지)가 값의 범위.
+ * 텍스트에서 "라벨 + 값" cue를 찾아 값 구간을 카테고리와 함께 반환.
+ * 값의 끝은 **같은 줄의 다음 cue 직전**, 또는 줄바꿈/탭/`|`, 또는 텍스트 끝.
  *
  * detector는 이 결과를 받아 [valueStart, valueEnd] 구간을 해당 카테고리로 강제 마스킹.
  */
 export function findInlineLabels(text: string): Array<InlineLabelMatch & { valueEnd: number }> {
+  // 경계 계산에는 두 티어의 cue를 모두 쓴다 — 사전에 없는 라벨("메모:")도
+  // 앞 값의 끝을 정하는 역할은 해야 "성명: 김민수 메모: …"에서 과마스킹되지 않는다.
+  const cues = [
+    ...collectCues(text, LABEL_A_RE, 'A'),
+    ...collectCues(text, LABEL_B_RE, 'B'),
+  ].sort((a, b) => a.cueStart - b.cueStart || a.valueStart - b.valueStart);
+
   const out: Array<InlineLabelMatch & { valueEnd: number }> = [];
-  INLINE_LABEL_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = INLINE_LABEL_RE.exec(text)) !== null) {
-    const label = m[1]?.trim() ?? '';
-    const cat = categoryForHeader(label);
-    if (!cat) continue;
-    const valueStart = m.index + m[0].length;
-    // 값의 끝: 다음 줄바꿈/탭/`|` 또는 텍스트 끝.
+  // Tier A가 이미 값으로 claim한 구간 — Tier B가 그 안에서 다시 발화하는 것을 막는다.
+  const claimed: Array<{ start: number; end: number }> = [];
+
+  for (let i = 0; i < cues.length; i++) {
+    const cue = cues[i]!;
+    if (!cue.resolved) continue;
+    const { label, category } = cue.resolved;
+
+    // 값의 끝 후보 1: 다음 cue의 라벨 시작 위치.
     let valueEnd = text.length;
-    for (let i = valueStart; i < text.length; i++) {
-      const ch = text[i]!;
-      if (ch === '\n' || ch === '\r' || ch === '\t' || ch === '|') {
-        valueEnd = i;
+    for (let j = i + 1; j < cues.length; j++) {
+      const next = cues[j]!;
+      if (next.cueStart > cue.valueStart) {
+        valueEnd = Math.min(valueEnd, next.cueStart);
         break;
       }
     }
-    if (valueEnd > valueStart) {
-      out.push({ label, valueStart, valueEnd, category: cat });
+    // 값의 끝 후보 2: 구조 문자.
+    for (let k = cue.valueStart; k < valueEnd; k++) {
+      if (isValueBreak(text[k]!)) {
+        valueEnd = k;
+        break;
+      }
     }
+    // 우측 공백 제거 — 공백까지 마스킹하지 않도록.
+    while (valueEnd > cue.valueStart && /\s/.test(text[valueEnd - 1]!)) valueEnd--;
+    if (valueEnd <= cue.valueStart) continue;
+
+    if (cue.tier === 'A') {
+      out.push({ label, valueStart: cue.valueStart, valueEnd, category });
+      claimed.push({ start: cue.valueStart, end: valueEnd });
+      continue;
+    }
+
+    // ---- Tier B 게이트 ----
+    if (!ID_CUE_CATEGORIES.has(category)) continue;
+    // Tier A 값 안에서 재발화하지 않는다 ("계좌: 우리 1002-100-100100").
+    if (claimed.some((c) => cue.valueStart >= c.start && cue.valueStart < c.end)) continue;
+
+    const rest = text.slice(cue.valueStart, valueEnd);
+    const vm =
+      category === 'credential' ? CRED_VALUE_RE.exec(rest) : ID_VALUE_RE.exec(rest);
+    if (!vm) continue;
+    const value = vm[0];
+    // credential 외에는 숫자를 포함해야 한다 — "카드 abcd" 같은 오탐 차단.
+    if (category !== 'credential' && !/\d/.test(value)) continue;
+
+    out.push({
+      label,
+      valueStart: cue.valueStart,
+      valueEnd: cue.valueStart + value.length,
+      category,
+    });
   }
-  return out;
+
+  return out.sort((a, b) => a.valueStart - b.valueStart);
 }
