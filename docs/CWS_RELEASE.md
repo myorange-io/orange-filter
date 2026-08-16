@@ -58,7 +58,7 @@ Playground를 쓰려면 OAuth 클라이언트의 승인된 리디렉션 URI에 `
 
 ## 2. GitHub Actions 설정
 
-리포지토리 **Settings → Secrets and variables → Actions → New repository secret**에 5개를 등록한다.
+secret 5개를 등록한다.
 
 | Secret | 값 |
 |---|---|
@@ -67,6 +67,40 @@ Playground를 쓰려면 OAuth 클라이언트의 승인된 리디렉션 URI에 `
 | `CWS_REFRESH_TOKEN` | 1-4의 refresh token |
 | `CWS_PUBLISHER_ID` | 1-2의 publisher ID |
 | `CWS_EXTENSION_ID` | 1-1의 extension ID |
+
+### 방법 A — gh CLI + `.env` (권장)
+
+로컬 실행에도 쓸 `.env`를 먼저 만들고(3절 참고), 그대로 밀어 넣는다. 한 번에 5개가 등록되고 값이 셸 히스토리에 남지 않는다.
+
+```bash
+gh secret set --env-file .env
+```
+
+`.env`는 gitignore 대상이지만 실제 자격증명이 담긴 파일이므로 등록 후에도 로컬에만 두고 공유하지 않는다.
+
+등록 확인 — 이름과 수정일만 나온다. 값은 GitHub도 되돌려주지 않는다.
+
+```bash
+gh secret list
+```
+
+개별로 넣으려면 `--body` 없이 실행해 stdin으로 붙여넣는다. `--body "값"`은 셸 히스토리에 그대로 남으므로 쓰지 않는다.
+
+```bash
+gh secret set CWS_REFRESH_TOKEN
+```
+
+### 방법 B — 웹 UI
+
+리포지토리 **Settings → Secrets and variables → Actions → New repository secret**에서 5개를 각각 등록한다.
+
+### 등록 후 확인
+
+`dry_run: true`로 워크플로를 1회 실행하면 업로드 없이 자격증명 유효성과 패키징만 검증한다. 로컬이라면:
+
+```bash
+node --env-file=.env scripts/cws-publish.mjs --dry-run
+```
 
 ### 승인 게이트 (권장)
 
