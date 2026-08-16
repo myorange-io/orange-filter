@@ -12,9 +12,29 @@ Chrome Web Store 업로드·게시를 스크립트와 GitHub Actions로 처리�
 
 ---
 
+## 0. 현재 설정 (2026-08-16 기준)
+
+토큰 교체·권한 회수 시 어디를 봐야 하는지 기록해 둔다. 값 자체는 여기 적지 않는다.
+
+| 항목 | 위치 |
+|---|---|
+| Cloud 프로젝트 | `myorange-ogu-2026-08` (Orange Impact QM Ogu) |
+| Chrome Web Store API | 사용 설정됨 |
+| OAuth 동의 화면 | **내부(Internal)** — 조직 계정 전용 |
+| OAuth 클라이언트 | `orange-filter-cws-publish` (유형: 데스크톱 앱) |
+| 스토어 아이템 | 오렌지필터(Orange Filter) — `gnkcbdgbajeboglkplllicdghlcghjai` |
+
+동의 화면이 **내부**라서, 아래 5절의 "테스트 상태 refresh token 7일 만료"는 이 프로젝트에 해당하지 않는다.
+
+권한을 끊으려면 Cloud Console에서 `orange-filter-cws-publish` 클라이언트를 삭제하면 된다. 발급된 refresh token이 함께 무효화된다.
+
+---
+
 ## 1. 자격증명 준비 (최초 1회)
 
-다섯 개 값이 필요하다. 전부 발급자 본인만 다룰 수 있으므로 아래는 직접 수행한다.
+0절의 설정이 이미 끝나 있으면 1-3의 클라이언트 생성은 건너뛰고, 해당 클라이언트의 client ID/secret만 가져오면 된다.
+
+다섯 개 값이 필요하다. client secret과 refresh token은 발급자 본인만 다룬다.
 
 ### 1-1. Extension ID
 
