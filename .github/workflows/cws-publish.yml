@@ -48,6 +48,55 @@ jobs:
     # environment: cws
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 아래 "main 소속 확인"에서 origin/main과 대조하려면 히스토리가 필요하다.
+          fetch-depth: 0
+
+      # ----------------------------------------------------------------------
+      # main 가드
+      #
+      # v1.6.4 사고의 재발 방지책이다. 그 버전은 미머지 브랜치에서 빌드돼 스토어에
+      # 게시됐고, 소스가 main에 들어가지 않아 다음 릴리스(v1.7.0)에서 수정이 통째로
+      # 되돌아갈 뻔했다. 스토어에 나가는 코드는 반드시 main을 거친 것이어야 한다.
+      #
+      # workflow_dispatch는 실행 시 브랜치를 고를 수 있으므로, ref 검사만으로는
+      # 부족하지 않지만 명시적으로 실패시켜 조용한 skip 대신 원인을 드러낸다.
+      # ----------------------------------------------------------------------
+      - name: Guard — main 브랜치에서만 실행
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error::CWS 업로드는 main에서만 실행할 수 있습니다 (현재: $REF)."
+            echo "스토어에 나가는 코드는 main을 거쳐야 합니다 — v1.6.4가 미머지 브랜치에서" >&2
+            echo "게시돼 다음 릴리스에서 수정이 되돌아갈 뻔한 사고가 있었습니다." >&2
+            echo "릴리스 커밋을 main에 머지한 뒤 다시 실행하세요." >&2
+            exit 1
+          fi
+          echo "✓ ref=$REF"
+
+      - name: Guard — 커밋이 origin/main에 포함되는지
+        # ref가 main이어도 fork/재작성 등으로 원격 main과 갈라진 커밋일 수 있다.
+        run: |
+          set -euo pipefail
+          git fetch --quiet origin main
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::현재 커밋($GITHUB_SHA)이 origin/main에 없습니다."
+            exit 1
+          fi
+          echo "✓ origin/main에 포함된 커밋"
+
+      - name: Guard — 릴리스 버전이 CHANGELOG에 기록됐는지
+        # v1.6.4는 CHANGELOG 항목 없이 게시돼 무엇이 나갔는지 추적할 수 없었다.
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          if ! grep -q "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md에 [$VERSION] 항목이 없습니다. 릴리스 기록 없이 게시할 수 없습니다."
+            exit 1
+          fi
+          echo "✓ CHANGELOG에 [$VERSION] 기록 있음"
 
       - uses: actions/setup-node@v4
         with:
