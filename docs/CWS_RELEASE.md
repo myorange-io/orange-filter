@@ -43,14 +43,41 @@ https://chrome.google.com/webstore/devconsole/.../<EXTENSION_ID>/edit
 
 스코프는 `https://www.googleapis.com/auth/chromewebstore`.
 
-가장 간단한 경로는 [OAuth 2.0 Playground](https://developers.google.com/oauthplayground):
+#### 권장 — `scripts/cws-auth.mjs` (로컬 loopback 플로우)
 
-1. 우측 상단 톱니 → **Use your own OAuth credentials** 체크 → 위에서 만든 client id/secret 입력
+client id/secret을 `.env`에 넣고 실행하면, 브라우저에서 승인만 하면 된다. **토큰이 화면·클립보드·셸 히스토리 어디에도 나오지 않고** 곧장 GitHub secret으로 들어간다.
+
+```
+CWS_CLIENT_ID=...
+CWS_CLIENT_SECRET=...
+```
+
+```bash
+npm run cws:auth          # = node scripts/cws-auth.mjs --set-secrets
+```
+
+브라우저가 열리면 **스토어 아이템을 소유한 Google 계정**으로 로그인·승인한다. 완료되면 `CWS_CLIENT_ID`·`CWS_CLIENT_SECRET`·`CWS_REFRESH_TOKEN` 3개가 gh secret으로 등록된다.
+
+`.env`에만 넣으려면 `--write-env`, 둘 다 하려면 함께 준다.
+
+```bash
+node scripts/cws-auth.mjs --set-secrets --write-env
+```
+
+리디렉션은 `http://127.0.0.1:8976`을 쓴다. `redirect_uri_mismatch`가 나면 Cloud Console의 해당 OAuth 클라이언트에 이 URI를 승인된 리디렉션 URI로 추가하거나, `--port`로 이미 등록된 포트를 지정한다.
+
+PKCE(S256)와 `state` 검증이 적용돼 있어, 다른 요청의 콜백이 섞여 들어오면 코드를 폐기한다.
+
+#### 대안 — OAuth 2.0 Playground
+
+[Playground](https://developers.google.com/oauthplayground)를 쓸 수도 있으나, refresh token을 사람이 복사·붙여넣기 해야 해서 유출 표면이 늘어난다.
+
+1. 우측 상단 톱니 → **Use your own OAuth credentials** 체크 → client id/secret 입력
 2. 좌측 입력란에 `https://www.googleapis.com/auth/chromewebstore` 직접 입력 → **Authorize APIs**
 3. **아이템을 소유한 Google 계정**으로 로그인·승인
 4. **Exchange authorization code for tokens** → 나온 **Refresh token** 보관
 
-Playground를 쓰려면 OAuth 클라이언트의 승인된 리디렉션 URI에 `https://developers.google.com/oauthplayground`를 추가해야 한다.
+이 경로는 OAuth 클라이언트의 승인된 리디렉션 URI에 `https://developers.google.com/oauthplayground`를 추가해야 한다.
 
 > Refresh token은 비밀번호와 같은 값이다. 저장소·이슈·채팅에 붙여넣지 않는다. 유출되면 Cloud Console에서 클라이언트를 폐기하고 재발급한다.
 
