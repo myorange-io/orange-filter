@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "cws:auth": "node scripts/cws-auth.mjs --set-secrets",
     "cws:package": "node scripts/cws-package.mjs",
     "cws:upload": "node scripts/cws-publish.mjs",
     "cws:publish": "node scripts/cws-publish.mjs --publish",
