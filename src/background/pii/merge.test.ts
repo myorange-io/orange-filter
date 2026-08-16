@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { mergeSpans } from './merge';
+import { dedupeSpans, mergeSpans } from './merge';
 import type { PIISpan } from '@/shared/types';
 
 function span(
@@ -163,5 +163,97 @@ describe('mergeSpans', () => {
       expect(result).toHaveLength(1);
       expect(result[0]!.text).toBe('김민수');
     });
+
+    test('confirm은 같은 카테고리끼리만 — person_name NER이 account 잠정을 확정하지 못함', () => {
+      const regex: PIISpan[] = [
+        {
+          start: 10,
+          end: 25,
+          text: '1002-100-100100',
+          category: 'account',
+          confidence: 0.6,
+          source: 'regex',
+          tentative: true,
+        },
+      ];
+      const model = [span(10, 25, 'person_name', 'model', 0.95)];
+      expect(mergeSpans(regex, model).filter((s) => s.source === 'regex')).toEqual([]);
+    });
+  });
+
+  describe('카테고리 권한 (AUTH / SNAP)', () => {
+    test('AUTH: 정규식 스팬 안에 든 모델 조각은 IoU < 0.5여도 폐기', () => {
+      // "1002-100-100100"(15자)을 정규식이 계좌로 확정했는데 모델이 뒷자리 "100100"만
+      // 태그한 상황. IoU = 6/15 = 0.4로 예전에는 둘 다 남아 같은 숫자열이 두 번 마스킹됐다.
+      const regex = [span(0, 15, 'account', 'regex', 0.99)];
+      const model = [span(9, 15, 'account', 'model', 0.9)];
+      expect(mergeSpans(regex, model)).toEqual(regex);
+    });
+
+    test('AUTH: 카테고리가 달라도 정규식 스팬 안의 조각이면 폐기', () => {
+      // 체크섬 통과한 주민번호 안에서 모델이 앞 6자리를 생년월일로 태그하는 케이스.
+      const regex = [span(0, 14, 'rrn', 'regex', 0.99)];
+      const model = [span(0, 6, 'date', 'model', 0.9)];
+      expect(mergeSpans(regex, model)).toEqual(regex);
+    });
+
+    test('AUTH: 살짝 걸치기만 한 모델 스팬은 유지 (포함 비율 < 0.5)', () => {
+      // 정규식 email [0,20] vs 모델 [18,40] → 포함 2/22 ≈ 0.09, IoU 0.05 → 별개 엔티티.
+      const regex = [span(0, 20, 'email', 'regex', 0.99)];
+      const model = [span(18, 40, 'address', 'model', 0.9)];
+      expect(mergeSpans(regex, model)).toHaveLength(2);
+    });
+
+    test('SNAP: 경계를 장담 못 하므로 포함돼 있어도 IoU 기준만 적용', () => {
+      // 정규식 mobile [0,13] vs 모델 [9,13] → 포함 1.0이지만 IoU 4/13 ≈ 0.31.
+      // AUTH였다면 폐기되지만 SNAP은 모델 근거를 삼키지 않는다.
+      const regex = [span(0, 13, 'mobile', 'regex', 0.95)];
+      const model = [span(9, 13, 'mobile', 'model', 0.9)];
+      expect(mergeSpans(regex, model)).toHaveLength(2);
+    });
+
+    test('MODEL 권한 카테고리(person_name)도 IoU 기준 유지', () => {
+      const regex = [span(0, 10, 'person_name', 'regex', 0.9)];
+      const model = [span(7, 10, 'person_name', 'model', 0.9)]; // IoU 3/10 = 0.3
+      expect(mergeSpans(regex, model)).toHaveLength(2);
+    });
+  });
+});
+
+describe('dedupeSpans', () => {
+  test('동일 (start,end,category) 중복 제거 — 정규식 + 인라인 cue 이중 발화', () => {
+    // "여권번호 M12345678" — 정규식 PASSPORT 패턴과 cue가 같은 스팬을 각각 만든다.
+    const spans = [
+      span(5, 14, 'passport', 'regex', 0.95, 'M12345678'),
+      span(5, 14, 'passport', 'regex', 1, 'M12345678'),
+    ];
+    expect(dedupeSpans(spans)).toHaveLength(1);
+  });
+
+  test('AUTH 스팬 안의 조각 제거 — 사업자번호 뒤 5자리가 우편번호로 잡히는 케이스', () => {
+    const biz = span(0, 12, 'business_number', 'regex', 1, '123-45-67890');
+    const zip = span(7, 12, 'postal_code', 'regex', 0.9, '67890');
+    const result = dedupeSpans([zip, biz]);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.category).toBe('business_number');
+  });
+
+  test('SNAP 스팬 안의 조각은 남긴다 (경계를 장담할 수 없음)', () => {
+    const phone = span(0, 13, 'mobile', 'regex', 0.95);
+    const inner = span(9, 13, 'postal_code', 'regex', 0.9);
+    expect(dedupeSpans([phone, inner])).toHaveLength(2);
+  });
+
+  test('겹치지 않는 스팬은 모두 유지하고 start 정렬', () => {
+    const spans = [
+      span(50, 60, 'email', 'regex'),
+      span(0, 13, 'rrn', 'regex'),
+      span(20, 33, 'mobile', 'regex'),
+    ];
+    expect(dedupeSpans(spans).map((s) => s.start)).toEqual([0, 20, 50]);
+  });
+
+  test('빈 입력', () => {
+    expect(dedupeSpans([])).toEqual([]);
   });
 });
