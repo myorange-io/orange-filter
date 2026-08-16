@@ -1,0 +1,126 @@
+name: cws-publish
+
+# Chrome Web Store 업로드/게시 (CWS API v2).
+#
+# 수동 실행 전용(workflow_dispatch)이다. 태그 push나 merge에 자동으로 걸지 않는다 —
+# 게시는 실사용자에게 나가는 되돌리기 어려운 동작이라, 트리거는 사람이 쥐고 있어야 한다.
+#
+# 기본값은 업로드까지만(publish: false). 심사 제출까지 하려면 실행 시 publish를 true로 준다.
+#
+# 필요한 secret 5개 (설정은 docs/CWS_RELEASE.md):
+#   CWS_CLIENT_ID  CWS_CLIENT_SECRET  CWS_REFRESH_TOKEN  CWS_PUBLISHER_ID  CWS_EXTENSION_ID
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: '심사에 제출한다 (false면 업로드만)'
+        type: boolean
+        default: false
+      staged:
+        description: '승인 후 자동 배포 대신 대기 (publish=true일 때만)'
+        type: boolean
+        default: false
+      percentage:
+        description: '단계 배포 시작 비율 0-100 (비우면 대시보드 설정값)'
+        type: string
+        default: ''
+      dry_run:
+        description: '자격증명·패키지 검증만, 업로드 안 함'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  # 같은 아이템에 업로드가 겹치면 CWS가 충돌 응답을 준다. 직렬화하고 취소하지 않는다.
+  group: cws-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Upload to Chrome Web Store
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # secret 접근을 environment 승인 게이트 뒤에 두려면 리포지토리 설정에서
+    # `cws` environment를 만들고 required reviewers를 붙인 뒤 아래 주석을 해제한다.
+    # environment: cws
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Typecheck + unit tests
+        # 스토어에 올라가는 산출물이므로 게이트를 통과한 코드만 패키징한다.
+        run: |
+          npm run typecheck
+          npx vitest run
+
+      - name: Build
+        run: npm run build
+
+      - name: Package
+        id: package
+        run: node scripts/cws-package.mjs
+
+      - name: Upload artifact
+        # 업로드가 실패해도 만들어진 zip은 남겨서 수동 업로드로 넘어갈 수 있게 한다.
+        uses: actions/upload-artifact@v4
+        with:
+          name: cws-package-v${{ steps.package.outputs.version }}
+          path: ${{ steps.package.outputs.zip_path }}
+          retention-days: 30
+
+      - name: Publish to CWS
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          # 입력값은 env로 받아 셸 변수로만 쓴다. run: 안에 ${{ }}로 직접 보간하면
+          # 값에 담긴 셸 메타문자가 그대로 실행돼 명령 주입이 된다.
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          INPUT_STAGED: ${{ inputs.staged }}
+          INPUT_PERCENTAGE: ${{ inputs.percentage }}
+        run: |
+          set -euo pipefail
+          args=()
+          [ "$INPUT_DRY_RUN" = "true" ] && args+=(--dry-run)
+          [ "$INPUT_PUBLISH" = "true" ] && args+=(--publish)
+          [ "$INPUT_STAGED" = "true" ] && args+=(--staged)
+          if [ -n "$INPUT_PERCENTAGE" ]; then
+            # 스크립트도 검증하지만, 셸에 넘기기 전에 형태를 먼저 못 박는다.
+            case "$INPUT_PERCENTAGE" in
+              ''|*[!0-9]*) echo "percentage는 0-100 정수여야 합니다: $INPUT_PERCENTAGE" >&2; exit 1;;
+            esac
+            args+=(--percentage "$INPUT_PERCENTAGE")
+          fi
+          echo "실행: node scripts/cws-publish.mjs ${args[*]-}"
+          node scripts/cws-publish.mjs ${args[@]+"${args[@]}"}
+
+      - name: Summary
+        if: always()
+        env:
+          VERSION: ${{ steps.package.outputs.version }}
+          ZIP_PATH: ${{ steps.package.outputs.zip_path }}
+          JOB_STATUS: ${{ job.status }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          {
+            echo "### CWS publish — v${VERSION}"
+            echo ""
+            echo "- 결과: ${JOB_STATUS}"
+            echo "- 심사 제출: ${INPUT_PUBLISH}"
+            echo "- dry-run: ${INPUT_DRY_RUN}"
+            echo "- 패키지: \`${ZIP_PATH}\` (artifact로 첨부)"
+          } >> "$GITHUB_STEP_SUMMARY"
