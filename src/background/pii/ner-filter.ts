@@ -67,11 +67,11 @@ function isShortAsciiToken(text: string): boolean {
  * 매칭: 선택적 `#` + 16진 3/4/6/8자리 (CSS #RGB·#RGBA·#RRGGBB·#RRGGBBAA).
  * NER 토크나이저가 `#`를 떼고 'FF6F1F'만 반환하는 케이스도 잡도록 `#` optional.
  *
- * over-suppression 차단:
+ * over-suppression 차단 (단, `#` 접두가 있으면 명백한 색상이므로 무조건 허용):
  *  - 순수 숫자('123456')는 실제 식별번호일 수 있어 제외 — A–F 글자 1개 이상 요구.
+ *    그러나 `#000000`·`#999999`처럼 `#`가 붙은 순수 숫자 색상은 색상으로 인정.
  *  - a–f 글자로만 이루어진 영어 단어('Facade'·'Decade'·'Bee')가 길이만으로 색상으로
- *    오인되지 않도록, `#` 접두 또는 숫자 1개 이상을 추가 요구. 실제 색상 코드는 거의 항상
- *    둘 중 하나를 만족.
+ *    오인되지 않도록, `#` 없는 경우 숫자 1개 이상을 추가 요구.
  */
 function isHexColor(text: string): boolean {
   const t = text.trim();
@@ -79,8 +79,11 @@ function isHexColor(text: string): boolean {
   const hasHash = t.startsWith('#');
   const hex = hasHash ? t.slice(1) : t;
   if (![3, 4, 6, 8].includes(hex.length)) return false;
-  if (!/[A-Fa-f]/.test(hex)) return false; // 순수 숫자 제외
-  return hasHash || /[0-9]/.test(hex); // 영어 단어(글자만) 제외
+  // `#` 접두가 있으면 순수 숫자(#000000)도 명백한 색상 — 그대로 허용.
+  if (hasHash) return true;
+  // `#`가 없으면: 순수 숫자('123456')는 식별번호일 수 있어 A–F 요구,
+  // 글자만('Facade')은 영어 단어일 수 있어 숫자 요구.
+  return /[A-Fa-f]/.test(hex) && /[0-9]/.test(hex);
 }
 
 /**

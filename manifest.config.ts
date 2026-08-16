@@ -19,7 +19,7 @@ export default defineManifest({
   name: '__MSG_appName__',
   short_name: '__MSG_appShortName__',
   description: '__MSG_appDescription__',
-  version: '1.7.0',
+  version: '1.7.1',
   default_locale: 'ko',
   icons: {
     16: 'icons/icon-16.png',
